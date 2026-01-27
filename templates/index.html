@@ -4,188 +4,250 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Meta Representantes - Ranking de Vendas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <header class="hero">
-    <div>
-      <p class="eyebrow">Meta Representantes</p>
-      <h1>Visão geral de vendas</h1>
-      <p class="subtitle">Relatório automático lendo a pasta <strong>{{ export_dir }}</strong>.</p>
-      {% if data_loaded %}
-      <p class="meta">Arquivo mais recente: <strong>{{ latest_file }}</strong> · Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
-      {% else %}
-      <p class="meta warning">Nenhum arquivo encontrado. Coloque um arquivo {{ supported_extensions }} na pasta acima.</p>
-      {% endif %}
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">MR</span>
+      <div>
+        <strong>Meta Representantes</strong>
+        <span>Dashboard de Vendas</span>
+      </div>
     </div>
+    <nav class="topnav">
+      <a class="active" href="/">Dashboard</a>
+      <a href="/admin">Admin</a>
+    </nav>
   </header>
+
+  <section class="hero">
+    <div class="hero-content">
+      <div>
+        <p class="eyebrow">Visão geral</p>
+        <h1>Resultados consolidados do período</h1>
+        <p class="subtitle">Relatório automático lendo a pasta <strong>{{ export_dir }}</strong>.</p>
+        {% if data_loaded %}
+        <p class="meta">Arquivo mais recente: <strong>{{ latest_file }}</strong> · Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+        {% else %}
+        <p class="meta warning">Nenhum arquivo encontrado. Coloque um arquivo {{ supported_extensions }} na pasta acima.</p>
+        {% endif %}
+      </div>
+      <div class="hero-card">
+        <h3>Status da meta</h3>
+        {% if data_loaded %}
+        <span class="status-pill {{ summary.meta_status_class }}">{{ summary.meta_status_label }}</span>
+        <p class="hero-value">{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</p>
+        <p class="caption">Atingimento atual</p>
+        <div class="progress">
+          <div class="progress-bar" style="width: {{ summary.meta_progress }}%"></div>
+        </div>
+        <p class="meta-detail">{{ summary.meta_status_detail }}</p>
+        {% else %}
+        <p class="caption">Carregue um arquivo para exibir o progresso da meta.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
 
   {% if data_loaded %}
   <main class="dashboard">
-  <section class="grid executive">
-    <div class="card executive-card">
-      <div class="executive-header">
-        <div>
-          <p class="eyebrow small">Painel executivo</p>
-          <h2>Resumo para diretoria</h2>
-          <p class="caption">Indicadores-chave e status geral da performance do período.</p>
+    <section class="grid executive">
+      <div class="card executive-card">
+        <div class="executive-header">
+          <div>
+            <p class="eyebrow small">Painel executivo</p>
+            <h2>Resumo para diretoria</h2>
+            <p class="caption">Indicadores-chave e status geral da performance do período.</p>
+          </div>
+          <span class="status-pill {{ summary.meta_status_class }}">{{ summary.meta_status_label }}</span>
         </div>
-        <span class="status-pill {{ summary.meta_status_class }}">{{ summary.meta_status_label }}</span>
+        <div class="executive-metrics">
+          <div class="metric">
+            <span>Vendas líquidas</span>
+            <strong>R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+          </div>
+          <div class="metric">
+            <span>Meta coleção</span>
+            <strong>R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+          </div>
+          <div class="metric">
+            <span>Atingimento</span>
+            <strong>{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</strong>
+          </div>
+          <div class="metric">
+            <span>Faltam para a meta</span>
+            <strong>R$ {{ "{:,.2f}".format(summary.valor_faltante).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+          </div>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" style="width: {{ summary.meta_progress }}%"></div>
+        </div>
+        <p class="meta-detail">{{ summary.meta_status_detail }}</p>
       </div>
-      <div class="executive-metrics">
-        <div class="metric">
-          <span>Vendas líquidas</span>
-          <strong>R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
-        </div>
-        <div class="metric">
-          <span>Meta coleção</span>
-          <strong>R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
-        </div>
-        <div class="metric">
-          <span>Atingimento</span>
-          <strong>{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</strong>
-        </div>
+    </section>
+
+    <section class="grid kpis">
+      <div class="card">
+        <h3>Vendedores</h3>
+        <p class="value">{{ summary.total_vendedores }}</p>
       </div>
-      <div class="progress">
-        <div class="progress-bar" style="width: {{ summary.meta_progress }}%"></div>
+      <div class="card">
+        <h3>Itens vendidos</h3>
+        <p class="value">{{ summary.total_itens }}</p>
       </div>
-      <p class="meta-detail">{{ summary.meta_status_detail }}</p>
-    </div>
-  </section>
-  <section class="grid kpis">
-    <div class="card">
-      <h3>Vendedores</h3>
-      <p class="value">{{ summary.total_vendedores }}</p>
-    </div>
-    <div class="card">
-      <h3>Itens vendidos</h3>
-      <p class="value">{{ summary.total_itens }}</p>
-    </div>
-    <div class="card">
-      <h3>Pedidos</h3>
-      <p class="value">{{ summary.total_pedidos }}</p>
-    </div>
-    <div class="card">
-      <h3>Vendas líquidas</h3>
-      <p class="value">R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
-    </div>
-    <div class="card">
-      <h3>Meta coleção</h3>
-      <p class="value">R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
-    </div>
-    <div class="card">
-      <h3>Atingimento da meta</h3>
-      <p class="value">{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</p>
-    </div>
-    <div class="card">
-      <h3>Total de clientes</h3>
-      <p class="value">{{ summary.total_clientes }}</p>
-    </div>
-    <div class="card">
-      <h3>Clientes ativos</h3>
-      <p class="value">{{ summary.clientes_ativos }}</p>
-    </div>
-    <div class="card">
-      <h3>Clientes novos</h3>
-      <p class="value">{{ summary.clientes_novos }}</p>
-    </div>
-    <div class="card highlight">
-      <h3>Vendedor destaque</h3>
-      <p class="value">{{ summary.vendedor_destaque.NOME_VENDEDOR }}</p>
-      <p class="caption">R$ {{ "{:,.2f}".format(summary.vendedor_destaque.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
-    </div>
-  </section>
+      <div class="card">
+        <h3>Pedidos</h3>
+        <p class="value">{{ summary.total_pedidos }}</p>
+      </div>
+      <div class="card">
+        <h3>Vendas líquidas</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+      </div>
+      <div class="card">
+        <h3>Meta coleção</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+      </div>
+      <div class="card">
+        <h3>Atingimento da meta</h3>
+        <p class="value">{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</p>
+      </div>
+      <div class="card">
+        <h3>Faltam para a meta</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(summary.valor_faltante).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+      </div>
+      <div class="card">
+        <h3>Excedente da meta</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(summary.valor_excedente).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+      </div>
+      <div class="card">
+        <h3>Total de clientes</h3>
+        <p class="value">{{ summary.total_clientes }}</p>
+      </div>
+      <div class="card">
+        <h3>Clientes ativos</h3>
+        <p class="value">{{ summary.clientes_ativos }}</p>
+      </div>
+      <div class="card">
+        <h3>Clientes novos</h3>
+        <p class="value">{{ summary.clientes_novos }}</p>
+      </div>
+      <div class="card highlight">
+        <h3>Vendedor destaque</h3>
+        <p class="value">{{ summary.vendedor_destaque.NOME_VENDEDOR }}</p>
+        <p class="caption">R$ {{ "{:,.2f}".format(summary.vendedor_destaque.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+      </div>
+    </section>
 
-  <section class="grid insights">
-    <div class="card">
-      <h3>Ticket médio</h3>
-      <p class="value">R$ {{ "{:,.2f}".format(insights.ticket_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
-      <p class="caption">Média geral considerando todos os pedidos.</p>
-    </div>
-    <div class="card">
-      <h3>Itens por pedido</h3>
-      <p class="value">{{ "{:.2f}".format(insights.media_itens_por_pedido) }}</p>
-      <p class="caption">Quantidade média de itens por pedido.</p>
-    </div>
-    <div class="card">
-      <h3>Taxa de clientes ativos</h3>
-      <p class="value">{{ "{:.1f}%".format(insights.taxa_clientes_ativos * 100) }}</p>
-      <p class="caption">Percentual de clientes ativos no período.</p>
-    </div>
-    <div class="card">
-      <h3>Pedidos por cliente</h3>
-      <p class="value">{{ "{:.2f}".format(insights.media_pedidos_por_cliente) }}</p>
-      <p class="caption">Frequência média de pedidos por cliente.</p>
-    </div>
-    <div class="card">
-      <h3>Clientes por vendedor</h3>
-      <p class="value">{{ "{:.1f}".format(insights.clientes_por_vendedor) }}</p>
-      <p class="caption">Distribuição média da carteira.</p>
-    </div>
-  </section>
+    <section class="grid insights">
+      <div class="card">
+        <h3>Ticket médio</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(insights.ticket_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+        <p class="caption">Média geral considerando todos os pedidos.</p>
+      </div>
+      <div class="card">
+        <h3>Itens por pedido</h3>
+        <p class="value">{{ "{:.2f}".format(insights.media_itens_por_pedido) }}</p>
+        <p class="caption">Quantidade média de itens por pedido.</p>
+      </div>
+      <div class="card">
+        <h3>Taxa de clientes ativos</h3>
+        <p class="value">{{ "{:.1f}%".format(insights.taxa_clientes_ativos * 100) }}</p>
+        <p class="caption">Percentual de clientes ativos no período.</p>
+      </div>
+      <div class="card">
+        <h3>Pedidos por cliente</h3>
+        <p class="value">{{ "{:.2f}".format(insights.media_pedidos_por_cliente) }}</p>
+        <p class="caption">Frequência média de pedidos por cliente.</p>
+      </div>
+      <div class="card">
+        <h3>Clientes por vendedor</h3>
+        <p class="value">{{ "{:.1f}".format(insights.clientes_por_vendedor) }}</p>
+        <p class="caption">Distribuição média da carteira.</p>
+      </div>
+    </section>
 
-  <section class="grid charts">
-    <div class="card">
-      <h3>Top 10 vendedores por valor líquido</h3>
-      <canvas id="chartVendas" height="120"></canvas>
-    </div>
-    <div class="card">
-      <h3>Top 5 por valor líquido</h3>
-      <ol class="ranking">
-        {% for item in summary.ranking_vendas %}
-        <li>
-          <span>{{ item.NOME_VENDEDOR }}</span>
-          <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
-        </li>
-        {% endfor %}
-      </ol>
-    </div>
-  </section>
-
-  <section class="table-section">
-    <h2>Detalhamento por vendedor</h2>
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Código</th>
-            <th>Vendedor</th>
-            <th>Itens</th>
-            <th>Pedidos</th>
-            <th>Clientes</th>
-            <th>Ativos</th>
-            <th>Qtd. média</th>
-            <th>Valor líquido</th>
-            <th>Preço médio</th>
-            <th>Média pedidos</th>
-            <th>Clientes novos</th>
-            <th>Meta coleção</th>
-            <th>Qtd. meta</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for vendedor in vendedores %}
-          <tr>
-            <td>{{ vendedor.codigo }}</td>
-            <td>{{ vendedor.nome }}</td>
-            <td>{{ vendedor.qtde_item }}</td>
-            <td>{{ vendedor.total_pedidos }}</td>
-            <td>{{ vendedor.total_clientes }}</td>
-            <td>{{ vendedor.clientes_ativos }}</td>
-            <td>{{ vendedor.qtde_media }}</td>
-            <td>R$ {{ "{:,.2f}".format(vendedor.vlr_liquido).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
-            <td>R$ {{ "{:,.2f}".format(vendedor.preco_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
-            <td>R$ {{ "{:,.2f}".format(vendedor.media_pedidos).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
-            <td>{{ vendedor.clientes_novos }}</td>
-            <td>{{ vendedor.valor_meta }}</td>
-            <td>{{ vendedor.qtde_meta }}</td>
-          </tr>
+    <section class="grid charts">
+      <div class="card">
+        <h3>Top 10 vendedores por valor líquido</h3>
+        <canvas id="chartVendas" height="120"></canvas>
+      </div>
+      <div class="card">
+        <h3>Top 5 por valor líquido</h3>
+        <ol class="ranking">
+          {% for item in summary.ranking_vendas %}
+          <li>
+            <span>{{ item.NOME_VENDEDOR }}</span>
+            <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+          </li>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Piores 5 por valor líquido</h3>
+        <ol class="ranking bad">
+          {% for item in summary.ranking_piores %}
+          <li>
+            <span>{{ item.NOME_VENDEDOR }}</span>
+            <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </section>
+
+    <section class="table-section">
+      <div class="section-header">
+        <div>
+          <h2>Detalhamento por vendedor</h2>
+          <p class="caption">Comparativo completo com metas e indicadores.</p>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Vendedor</th>
+              <th>Itens</th>
+              <th>Pedidos</th>
+              <th>Clientes</th>
+              <th>Ativos</th>
+              <th>Qtd. média</th>
+              <th>Valor líquido</th>
+              <th>Preço médio</th>
+              <th>Média pedidos</th>
+              <th>Clientes novos</th>
+              <th>Meta coleção</th>
+              <th>Qtd. meta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vendedor in vendedores %}
+            <tr>
+              <td>{{ vendedor.codigo }}</td>
+              <td>{{ vendedor.nome }}</td>
+              <td>{{ vendedor.qtde_item }}</td>
+              <td>{{ vendedor.total_pedidos }}</td>
+              <td>{{ vendedor.total_clientes }}</td>
+              <td>{{ vendedor.clientes_ativos }}</td>
+              <td>{{ vendedor.qtde_media }}</td>
+              <td>R$ {{ "{:,.2f}".format(vendedor.vlr_liquido).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td>R$ {{ "{:,.2f}".format(vendedor.preco_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td>R$ {{ "{:,.2f}".format(vendedor.media_pedidos).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td>{{ vendedor.clientes_novos }}</td>
+              <td>{{ vendedor.valor_meta }}</td>
+              <td>{{ vendedor.qtde_meta }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
   </main>
   {% endif %}
 
@@ -204,7 +266,7 @@
         datasets: [{
           label: 'Valor líquido (R$)',
           data: chartData.values,
-          backgroundColor: '#1769ff'
+          backgroundColor: '#2563eb'
         }]
       },
       options: {

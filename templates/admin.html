@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Representantes - Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">MR</span>
+      <div>
+        <strong>Meta Representantes</strong>
+        <span>Painel administrativo</span>
+      </div>
+    </div>
+    <nav class="topnav">
+      <a href="/">Dashboard</a>
+      <a class="active" href="/admin">Admin</a>
+    </nav>
+  </header>
+
+  <section class="hero hero-admin">
+    <div class="hero-content">
+      <div>
+        <p class="eyebrow">Administração</p>
+        <h1>Atualize o arquivo de vendas</h1>
+        <p class="subtitle">Envie um novo arquivo {{ supported_extensions }} para substituir o relatório atual automaticamente.</p>
+      </div>
+      <div class="hero-card">
+        <h3>Arquivo ativo</h3>
+        {% if latest_file %}
+        <p class="hero-value">{{ latest_file }}</p>
+        {% if updated_at %}
+        <p class="caption">Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+        {% endif %}
+        {% else %}
+        <p class="caption">Nenhum arquivo carregado ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <main class="dashboard admin-page">
+    <section class="grid admin-grid">
+      <div class="card admin-card">
+        <h2>Enviar novo relatório</h2>
+        <p class="caption">O arquivo antigo será removido automaticamente antes da atualização.</p>
+        {% if message %}
+        <div class="alert {{ message_type }}">{{ message }}</div>
+        {% endif %}
+        <form class="upload-form" method="post" enctype="multipart/form-data">
+          <label class="form-field" for="report_file">
+            <span>Selecione o arquivo</span>
+            <input id="report_file" name="report_file" type="file" accept=".csv,.xls,.xlsx" required>
+          </label>
+          <button class="btn-primary" type="submit">Atualizar arquivo</button>
+        </form>
+      </div>
+      <div class="card admin-info">
+        <h3>Onde o arquivo é salvo</h3>
+        <p class="caption">Pasta de exportação configurada:</p>
+        <p class="path-pill">{{ export_dir }}</p>
+        <ul class="info-list">
+          <li>Arquivos anteriores são removidos automaticamente.</li>
+          <li>Extensões aceitas: {{ supported_extensions }}.</li>
+          <li>Atualize e volte ao dashboard para ver os novos dados.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Somente usuários autorizados devem realizar atualizações do arquivo de vendas.</p>
+  </footer>
+</body>
+</html>
