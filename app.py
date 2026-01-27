@@ -58,7 +58,15 @@ def normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def load_report(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
-        df = pd.read_csv(path, sep=None, engine="python")
+        csv_kwargs = {"sep": None, "engine": "python"}
+        for encoding in ("utf-8", "utf-8-sig", "latin1", "cp1252"):
+            try:
+                df = pd.read_csv(path, encoding=encoding, **csv_kwargs)
+                break
+            except UnicodeDecodeError:
+                df = None
+        if df is None:
+            df = pd.read_csv(path, encoding_errors="replace", **csv_kwargs)
     else:
         df = pd.read_excel(path)
     df.columns = [column.strip().upper() for column in df.columns]
