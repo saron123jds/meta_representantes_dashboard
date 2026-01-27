@@ -5,12 +5,14 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-from flask import Flask, render_template
+from flask import Flask, render_template, request
+from werkzeug.utils import secure_filename
 
 DEFAULT_EXPORT_DIR = r"C:\\META REPRESENTANTES\\Exporta"
 SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 
 
 def resolve_export_dir() -> Path:
@@ -29,6 +31,18 @@ def find_latest_file(directory: Path) -> Path | None:
     if not files:
         return None
     return max(files, key=lambda path: path.stat().st_mtime)
+
+
+def purge_export_files(directory: Path) -> int:
+    if not directory.exists():
+        directory.mkdir(parents=True, exist_ok=True)
+        return 0
+    removed = 0
+    for path in directory.iterdir():
+        if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
+            path.unlink()
+            removed += 1
+    return removed
 
 
 def normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -261,6 +275,53 @@ def dashboard():
         insights=insights,
         vendedores=vendedores,
         chart_data=chart_data,
+    )
+
+
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    export_dir = resolve_export_dir()
+    latest_file = find_latest_file(export_dir)
+    message = None
+    message_type = "info"
+
+    if request.method == "POST":
+        uploaded = request.files.get("report_file")
+        if not uploaded or not uploaded.filename:
+            message = "Selecione um arquivo para atualizar o relatório."
+            message_type = "error"
+        else:
+            filename = secure_filename(uploaded.filename)
+            if not filename:
+                message = "Nome de arquivo inválido."
+                message_type = "error"
+            else:
+                extension = Path(filename).suffix.lower()
+                if extension not in SUPPORTED_EXTENSIONS:
+                    message = (
+                        "Formato não suportado. Use: "
+                        + ", ".join(sorted(SUPPORTED_EXTENSIONS))
+                        + "."
+                    )
+                    message_type = "error"
+                else:
+                    purge_export_files(export_dir)
+                    destination = export_dir / filename
+                    uploaded.save(destination)
+                    latest_file = destination
+                    message = f"Arquivo {filename} atualizado com sucesso."
+                    message_type = "success"
+
+    return render_template(
+        "admin.html",
+        export_dir=str(export_dir),
+        latest_file=latest_file.name if latest_file else None,
+        updated_at=(
+            datetime.fromtimestamp(latest_file.stat().st_mtime) if latest_file else None
+        ),
+        message=message,
+        message_type=message_type,
+        supported_extensions=", ".join(sorted(SUPPORTED_EXTENSIONS)),
     )
 
 
