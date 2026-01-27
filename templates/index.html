@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Representantes - Ranking de Vendas</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Meta Representantes</p>
+      <h1>Ranking de vendas atualizado</h1>
+      <p class="subtitle">Relatório automático lendo a pasta <strong>{{ export_dir }}</strong>.</p>
+      {% if data_loaded %}
+      <p class="meta">Arquivo mais recente: <strong>{{ latest_file }}</strong> · Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+      {% else %}
+      <p class="meta warning">Nenhum arquivo encontrado. Coloque um arquivo {{ supported_extensions }} na pasta acima.</p>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if data_loaded %}
+  <section class="grid kpis">
+    <div class="card">
+      <h3>Vendedores</h3>
+      <p class="value">{{ summary.total_vendedores }}</p>
+    </div>
+    <div class="card">
+      <h3>Itens vendidos</h3>
+      <p class="value">{{ summary.total_itens }}</p>
+    </div>
+    <div class="card">
+      <h3>Vendas líquidas</h3>
+      <p class="value">R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+    </div>
+    <div class="card">
+      <h3>Total de clientes</h3>
+      <p class="value">{{ summary.total_clientes }}</p>
+    </div>
+    <div class="card">
+      <h3>Clientes ativos</h3>
+      <p class="value">{{ summary.clientes_ativos }}</p>
+    </div>
+    <div class="card">
+      <h3>Clientes novos</h3>
+      <p class="value">{{ summary.clientes_novos }}</p>
+    </div>
+  </section>
+
+  <section class="grid insights">
+    <div class="card">
+      <h3>Ticket médio</h3>
+      <p class="value">R$ {{ "{:,.2f}".format(insights.ticket_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+      <p class="caption">Média geral considerando todos os pedidos.</p>
+    </div>
+    <div class="card">
+      <h3>Itens por pedido</h3>
+      <p class="value">{{ "{:.2f}".format(insights.media_itens_por_pedido) }}</p>
+      <p class="caption">Quantidade média de itens por pedido.</p>
+    </div>
+    <div class="card">
+      <h3>Taxa de clientes ativos</h3>
+      <p class="value">{{ "{:.1f}%".format(insights.taxa_clientes_ativos * 100) }}</p>
+      <p class="caption">Percentual de clientes ativos no período.</p>
+    </div>
+  </section>
+
+  <section class="grid charts">
+    <div class="card">
+      <h3>Top 10 vendedores por valor líquido</h3>
+      <canvas id="chartVendas" height="120"></canvas>
+    </div>
+    <div class="card">
+      <h3>Top 5 por valor líquido</h3>
+      <ol class="ranking">
+        {% for item in summary.ranking_vendas %}
+        <li>
+          <span>{{ item.NOME_VENDEDOR }}</span>
+          <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </section>
+
+  <section class="table-section">
+    <h2>Detalhamento por vendedor</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Vendedor</th>
+            <th>Itens</th>
+            <th>Pedidos</th>
+            <th>Clientes</th>
+            <th>Ativos</th>
+            <th>Qtd. média</th>
+            <th>Valor líquido</th>
+            <th>Preço médio</th>
+            <th>Média pedidos</th>
+            <th>Clientes novos</th>
+            <th>Meta coleção</th>
+            <th>Qtd. meta</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for vendedor in vendedores %}
+          <tr>
+            <td>{{ vendedor.codigo }}</td>
+            <td>{{ vendedor.nome }}</td>
+            <td>{{ vendedor.qtde_item }}</td>
+            <td>{{ vendedor.total_pedidos }}</td>
+            <td>{{ vendedor.total_clientes }}</td>
+            <td>{{ vendedor.clientes_ativos }}</td>
+            <td>{{ vendedor.qtde_media }}</td>
+            <td>R$ {{ "{:,.2f}".format(vendedor.vlr_liquido).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+            <td>R$ {{ "{:,.2f}".format(vendedor.preco_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+            <td>R$ {{ "{:,.2f}".format(vendedor.media_pedidos).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+            <td>{{ vendedor.clientes_novos }}</td>
+            <td>{{ vendedor.valor_meta }}</td>
+            <td>{{ vendedor.qtde_meta }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <footer>
+    <p>Relatório atualizado automaticamente com base no arquivo mais recente da pasta de exportação.</p>
+  </footer>
+
+  {% if data_loaded %}
+  <script>
+    const chartData = {{ chart_data | safe }};
+    const ctx = document.getElementById('chartVendas');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: chartData.labels,
+        datasets: [{
+          label: 'Valor líquido (R$)',
+          data: chartData.values,
+          backgroundColor: '#1769ff'
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: value => 'R$ ' + value.toLocaleString('pt-BR')
+            }
+          }
+        }
+      }
+    });
+  </script>
+  {% endif %}
+</body>
+</html>
