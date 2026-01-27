@@ -11,7 +11,7 @@
   <header class="hero">
     <div>
       <p class="eyebrow">Meta Representantes</p>
-      <h1>Ranking de vendas atualizado</h1>
+      <h1>Visão geral de vendas</h1>
       <p class="subtitle">Relatório automático lendo a pasta <strong>{{ export_dir }}</strong>.</p>
       {% if data_loaded %}
       <p class="meta">Arquivo mais recente: <strong>{{ latest_file }}</strong> · Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
@@ -22,6 +22,7 @@
   </header>
 
   {% if data_loaded %}
+  <main class="dashboard">
   <section class="grid kpis">
     <div class="card">
       <h3>Vendedores</h3>
@@ -32,8 +33,20 @@
       <p class="value">{{ summary.total_itens }}</p>
     </div>
     <div class="card">
+      <h3>Pedidos</h3>
+      <p class="value">{{ summary.total_pedidos }}</p>
+    </div>
+    <div class="card">
       <h3>Vendas líquidas</h3>
       <p class="value">R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+    </div>
+    <div class="card">
+      <h3>Meta coleção</h3>
+      <p class="value">R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+    </div>
+    <div class="card">
+      <h3>Atingimento da meta</h3>
+      <p class="value">{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</p>
     </div>
     <div class="card">
       <h3>Total de clientes</h3>
@@ -46,6 +59,11 @@
     <div class="card">
       <h3>Clientes novos</h3>
       <p class="value">{{ summary.clientes_novos }}</p>
+    </div>
+    <div class="card highlight">
+      <h3>Vendedor destaque</h3>
+      <p class="value">{{ summary.vendedor_destaque.NOME_VENDEDOR }}</p>
+      <p class="caption">R$ {{ "{:,.2f}".format(summary.vendedor_destaque.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
     </div>
   </section>
 
@@ -64,6 +82,16 @@
       <h3>Taxa de clientes ativos</h3>
       <p class="value">{{ "{:.1f}%".format(insights.taxa_clientes_ativos * 100) }}</p>
       <p class="caption">Percentual de clientes ativos no período.</p>
+    </div>
+    <div class="card">
+      <h3>Pedidos por cliente</h3>
+      <p class="value">{{ "{:.2f}".format(insights.media_pedidos_por_cliente) }}</p>
+      <p class="caption">Frequência média de pedidos por cliente.</p>
+    </div>
+    <div class="card">
+      <h3>Clientes por vendedor</h3>
+      <p class="value">{{ "{:.1f}".format(insights.clientes_por_vendedor) }}</p>
+      <p class="caption">Distribuição média da carteira.</p>
     </div>
   </section>
 
@@ -128,6 +156,7 @@
       </table>
     </div>
   </section>
+  </main>
   {% endif %}
 
   <footer>
