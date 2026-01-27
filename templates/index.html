@@ -23,6 +23,36 @@
 
   {% if data_loaded %}
   <main class="dashboard">
+  <section class="grid executive">
+    <div class="card executive-card">
+      <div class="executive-header">
+        <div>
+          <p class="eyebrow small">Painel executivo</p>
+          <h2>Resumo para diretoria</h2>
+          <p class="caption">Indicadores-chave e status geral da performance do período.</p>
+        </div>
+        <span class="status-pill {{ summary.meta_status_class }}">{{ summary.meta_status_label }}</span>
+      </div>
+      <div class="executive-metrics">
+        <div class="metric">
+          <span>Vendas líquidas</span>
+          <strong>R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+        </div>
+        <div class="metric">
+          <span>Meta coleção</span>
+          <strong>R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+        </div>
+        <div class="metric">
+          <span>Atingimento</span>
+          <strong>{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</strong>
+        </div>
+      </div>
+      <div class="progress">
+        <div class="progress-bar" style="width: {{ summary.meta_progress }}%"></div>
+      </div>
+      <p class="meta-detail">{{ summary.meta_status_detail }}</p>
+    </div>
+  </section>
   <section class="grid kpis">
     <div class="card">
       <h3>Vendedores</h3>
