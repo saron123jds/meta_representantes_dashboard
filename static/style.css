@@ -170,6 +170,10 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
+.alerts {
+  grid-template-columns: 1fr;
+}
+
 .executive {
   grid-template-columns: 1fr;
 }
@@ -312,6 +316,34 @@ a {
   gap: 12px;
 }
 
+.ranking.worst strong {
+  color: #b91c1c;
+}
+
+.alert-card {
+  display: grid;
+  gap: 12px;
+}
+
+.alert-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.alert-list li {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.text-danger {
+  color: #b91c1c;
+}
+
 .table-section {
   padding: 24px 6% 28px;
 }
@@ -349,6 +381,22 @@ a {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.row-status-alert {
+  background: #fff1f2;
+}
+
+.row-status-warning {
+  background: #fffbeb;
+}
+
+.row-status-good {
+  background: #f0fdf4;
+}
+
+.row-status-neutral {
+  background: #f8fafc;
 }
 
 .admin-page {

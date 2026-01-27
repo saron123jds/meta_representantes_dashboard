@@ -151,12 +151,31 @@ def build_summary(df: pd.DataFrame) -> dict:
         if "VLR_LIQUIDO" in df.columns
         else []
     )
+    ranking_piores = (
+        df.sort_values("VLR_LIQUIDO", ascending=True)
+        .head(5)[["NOME_VENDEDOR", "VLR_LIQUIDO"]]
+        .to_dict(orient="records")
+        if "VLR_LIQUIDO" in df.columns
+        else []
+    )
     destaque = (
         df.sort_values("VLR_LIQUIDO", ascending=False)
         .head(1)[["NOME_VENDEDOR", "VLR_LIQUIDO"]]
         .to_dict(orient="records")
     )
     vendedor_destaque = destaque[0] if destaque else {"NOME_VENDEDOR": "-", "VLR_LIQUIDO": 0.0}
+
+    vendedores_abaixo_meta = 0
+    vendedores_sem_meta = 0
+    vendedores_sem_clientes_ativos = 0
+    if "VALOR_META_COLECAO" in df.columns and "VLR_LIQUIDO" in df.columns:
+        metas = df["VALOR_META_COLECAO"].fillna(0)
+        vendas = df["VLR_LIQUIDO"].fillna(0)
+        percentual_meta_vendedor = vendas.div(metas.where(metas > 0, pd.NA))
+        vendedores_abaixo_meta = int((percentual_meta_vendedor < 0.5).fillna(False).sum())
+        vendedores_sem_meta = int((metas <= 0).sum())
+    if "CLIENTES_ATIVOS" in df.columns:
+        vendedores_sem_clientes_ativos = int((df["CLIENTES_ATIVOS"].fillna(0) <= 0).sum())
 
     return {
         "total_vendedores": total_vendedores,
@@ -174,7 +193,11 @@ def build_summary(df: pd.DataFrame) -> dict:
         "meta_status_detail": meta_status_detail,
         "valor_faltante": valor_faltante,
         "ranking_vendas": ranking_vendas,
+        "ranking_piores": ranking_piores,
         "vendedor_destaque": vendedor_destaque,
+        "vendedores_abaixo_meta": vendedores_abaixo_meta,
+        "vendedores_sem_meta": vendedores_sem_meta,
+        "vendedores_sem_clientes_ativos": vendedores_sem_clientes_ativos,
     }
 
 
@@ -185,10 +208,15 @@ def build_insights(df: pd.DataFrame) -> dict:
         "taxa_clientes_ativos": 0.0,
         "media_pedidos_por_cliente": 0.0,
         "clientes_por_vendedor": 0.0,
+        "media_venda_por_vendedor": 0.0,
+        "ticket_medio_cliente": 0.0,
     }
     if "VLR_LIQUIDO" in df.columns:
         insights["ticket_medio"] = float(df["VLR_LIQUIDO"].sum()) / max(
             df["TOTAL_PEDIDOS"].sum(), 1
+        )
+        insights["media_venda_por_vendedor"] = float(df["VLR_LIQUIDO"].sum()) / max(
+            df.shape[0], 1
         )
     if "QTDEITEM" in df.columns:
         insights["media_itens_por_pedido"] = float(df["QTDEITEM"].sum()) / max(
@@ -206,6 +234,9 @@ def build_insights(df: pd.DataFrame) -> dict:
         insights["clientes_por_vendedor"] = float(df["TOTAL_CLIENTES"].sum()) / max(
             df.shape[0], 1
         )
+        insights["ticket_medio_cliente"] = float(df["VLR_LIQUIDO"].sum()) / max(
+            df["TOTAL_CLIENTES"].sum(), 1
+        )
     return insights
 
 
@@ -221,6 +252,26 @@ def build_vendedores(df: pd.DataFrame) -> list[dict]:
         return value
 
     for _, row in df.iterrows():
+        valor_meta = safe_value(row.get("VALOR_META_COLECAO"), 0.0)
+        vlr_liquido = safe_value(row.get("VLR_LIQUIDO"), 0.0)
+        percentual_meta = None
+        gap_meta = None
+        meta_status_class = "status-neutral"
+        meta_status_label = "Sem meta"
+
+        if valor_meta and valor_meta > 0:
+            percentual_meta = vlr_liquido / valor_meta
+            gap_meta = valor_meta - vlr_liquido
+            if percentual_meta >= 1:
+                meta_status_class = "status-good"
+                meta_status_label = "Meta atingida"
+            elif percentual_meta >= 0.8:
+                meta_status_class = "status-warning"
+                meta_status_label = "Reta final"
+            else:
+                meta_status_class = "status-alert"
+                meta_status_label = "Atenção"
+
         vendedores.append(
             {
                 "codigo": row.get("VENDEDOR"),
@@ -230,12 +281,16 @@ def build_vendedores(df: pd.DataFrame) -> list[dict]:
                 "total_clientes": safe_value(row.get("TOTAL_CLIENTES")),
                 "clientes_ativos": safe_value(row.get("CLIENTES_ATIVOS")),
                 "qtde_media": safe_value(row.get("QTDE_MEDIA")),
-                "vlr_liquido": safe_value(row.get("VLR_LIQUIDO")),
+                "vlr_liquido": vlr_liquido,
                 "preco_medio": safe_value(row.get("PRECO_MEDIO")),
                 "media_pedidos": safe_value(row.get("MEDIA_PEDIDOS")),
                 "clientes_novos": safe_value(row.get("CLIENTES_NOVOS")),
-                "valor_meta": safe_value(row.get("VALOR_META_COLECAO"), "-"),
-                "qtde_meta": safe_value(row.get("QTDE_META_COLECAO"), "-"),
+                "valor_meta": valor_meta,
+                "qtde_meta": safe_value(row.get("QTDE_META_COLECAO"), 0),
+                "percentual_meta": percentual_meta,
+                "gap_meta": gap_meta,
+                "meta_status_class": meta_status_class,
+                "meta_status_label": meta_status_label,
             }
         )
     return vendedores
