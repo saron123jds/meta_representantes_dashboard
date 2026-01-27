@@ -1,5 +1,6 @@
 import json
 import os
+import csv
 from datetime import datetime
 from pathlib import Path
 
@@ -59,14 +60,23 @@ def normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
 def load_report(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
         csv_kwargs = {"sep": None, "engine": "python"}
-        for encoding in ("utf-8", "utf-8-sig", "latin1", "cp1252"):
+        encodings_to_try = ("utf-8-sig", "utf-8", "utf-16", "cp1252", "latin1")
+        df = None
+
+        with path.open("rb") as file_handle:
+            sample = file_handle.read(4096)
+        for encoding in encodings_to_try:
             try:
+                sample.decode(encoding)
                 df = pd.read_csv(path, encoding=encoding, **csv_kwargs)
                 break
             except UnicodeDecodeError:
-                df = None
+                continue
+
         if df is None:
-            df = pd.read_csv(path, encoding_errors="replace", **csv_kwargs)
+            df = pd.read_csv(
+                path, encoding="latin1", encoding_errors="replace", **csv_kwargs
+            )
     else:
         df = pd.read_excel(path)
     df.columns = [column.strip().upper() for column in df.columns]
