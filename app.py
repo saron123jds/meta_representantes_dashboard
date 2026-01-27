@@ -177,6 +177,19 @@ def build_summary(df: pd.DataFrame) -> dict:
     if "CLIENTES_ATIVOS" in df.columns:
         vendedores_sem_clientes_ativos = int((df["CLIENTES_ATIVOS"].fillna(0) <= 0).sum())
 
+    top_clientes_novos = {"nome": "-", "clientes_novos": 0}
+    if "CLIENTES_NOVOS" in df.columns:
+        clientes_novos = df["CLIENTES_NOVOS"].fillna(0)
+        if not clientes_novos.empty:
+            idx_top = clientes_novos.idxmax()
+            nome_top = (
+                df.at[idx_top, "NOME_VENDEDOR"] if "NOME_VENDEDOR" in df.columns else "-"
+            )
+            top_clientes_novos = {
+                "nome": nome_top,
+                "clientes_novos": int(clientes_novos.loc[idx_top]),
+            }
+
     return {
         "total_vendedores": total_vendedores,
         "total_itens": total_itens,
@@ -198,6 +211,7 @@ def build_summary(df: pd.DataFrame) -> dict:
         "vendedores_abaixo_meta": vendedores_abaixo_meta,
         "vendedores_sem_meta": vendedores_sem_meta,
         "vendedores_sem_clientes_ativos": vendedores_sem_clientes_ativos,
+        "top_clientes_novos": top_clientes_novos,
     }
 
 

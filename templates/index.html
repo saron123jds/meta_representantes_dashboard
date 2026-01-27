@@ -124,6 +124,11 @@
         <h3>Clientes novos</h3>
         <p class="value">{{ summary.clientes_novos }}</p>
       </div>
+      <div class="card">
+        <h3>Mais clientes novos</h3>
+        <p class="value">{{ summary.top_clientes_novos.nome }}</p>
+        <p class="caption">{{ summary.top_clientes_novos.clientes_novos }} novos no período</p>
+      </div>
       <div class="card highlight">
         <h3>Vendedor destaque</h3>
         <p class="value">{{ summary.vendedor_destaque.NOME_VENDEDOR }}</p>
