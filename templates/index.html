@@ -22,6 +22,7 @@
     <nav class="topnav">
       <a class="active" href="/">Dashboard</a>
       <a href="/admin">Admin</a>
+      <a href="/admin/metas">Metas</a>
     </nav>
   </header>
 
@@ -38,15 +39,20 @@
         {% endif %}
       </div>
       <div class="hero-card">
-        <h3>Status da meta</h3>
+        <h3>Status das metas cadastradas</h3>
         {% if data_loaded %}
         <span class="status-pill {{ summary.meta_status_class }}">{{ summary.meta_status_label }}</span>
+        {% if summary.total_meta > 0 %}
         <p class="hero-value">{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</p>
-        <p class="caption">Atingimento atual</p>
+        <p class="caption">Atingimento sobre metas cadastradas</p>
         <div class="progress">
           <div class="progress-bar" style="width: {{ summary.meta_progress }}%"></div>
         </div>
         <p class="meta-detail">{{ summary.meta_status_detail }}</p>
+        {% else %}
+        <p class="hero-value">—</p>
+        <p class="caption">Nenhuma meta cadastrada para {{ metas_periodo }}.</p>
+        {% endif %}
         {% else %}
         <p class="caption">Carregue um arquivo para exibir o progresso da meta.</p>
         {% endif %}
@@ -72,12 +78,16 @@
             <strong>R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
           </div>
           <div class="metric">
-            <span>Meta coleção</span>
-            <strong>R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+            <span>Representantes com meta</span>
+            <strong>{{ summary.vendedores_com_meta }}/{{ summary.total_vendedores }}</strong>
           </div>
           <div class="metric">
-            <span>Atingimento</span>
-            <strong>{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</strong>
+            <span>Acima de 100% da meta</span>
+            <strong>{{ summary.vendedores_acima_meta }}</strong>
+          </div>
+          <div class="metric">
+            <span>Gap total (metas cadastradas)</span>
+            <strong>R$ {{ "{:,.2f}".format(summary.gap_total).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
           </div>
         </div>
         <div class="progress">
@@ -105,12 +115,14 @@
         <p class="value">R$ {{ "{:,.2f}".format(summary.total_vendas).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
       </div>
       <div class="card">
-        <h3>Meta coleção</h3>
-        <p class="value">R$ {{ "{:,.2f}".format(summary.total_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+        <h3>Representantes com meta</h3>
+        <p class="value">{{ summary.vendedores_com_meta }}/{{ summary.total_vendedores }}</p>
+        <p class="caption">Período {{ metas_periodo }}</p>
       </div>
       <div class="card">
-        <h3>Atingimento da meta</h3>
-        <p class="value">{{ "{:.1f}%".format(summary.percentual_meta * 100) }}</p>
+        <h3>Acima de 100% da meta</h3>
+        <p class="value">{{ summary.vendedores_acima_meta }}</p>
+        <p class="caption">Somente metas cadastradas</p>
       </div>
       <div class="card">
         <h3>Total de clientes</h3>
@@ -183,7 +195,9 @@
             <strong class="text-danger">{{ summary.vendedores_abaixo_meta }}</strong>
           </li>
           <li>
-            <span>Vendedores sem meta informada</span>
+            <button class="link-button" type="button" data-filter="pendente">
+              Representantes sem meta cadastrada
+            </button>
             <strong>{{ summary.vendedores_sem_meta }}</strong>
           </li>
           <li>
@@ -200,26 +214,26 @@
         <canvas id="chartVendas" height="120"></canvas>
       </div>
       <div class="card">
-        <h3>Top 5 por valor líquido</h3>
-        <ol class="ranking">
-          {% for item in summary.ranking_vendas %}
-          <li>
-            <span>{{ item.NOME_VENDEDOR }}</span>
-            <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
-          </li>
-          {% endfor %}
-        </ol>
+        <div class="section-header">
+          <h3>Top 5</h3>
+          <select id="rankingSelect">
+            <option value="valor">Valor líquido</option>
+            <option value="atingimento">% Atingimento</option>
+            <option value="gap">Gap</option>
+          </select>
+        </div>
+        <ol class="ranking" id="rankingTop"></ol>
       </div>
       <div class="card">
-        <h3>Piores 5 por valor líquido</h3>
-        <ol class="ranking worst">
-          {% for item in summary.ranking_piores %}
-          <li>
-            <span>{{ item.NOME_VENDEDOR }}</span>
-            <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
-          </li>
-          {% endfor %}
-        </ol>
+        <div class="section-header">
+          <h3>Bottom 5</h3>
+          <select id="rankingSelectBottom">
+            <option value="valor">Valor líquido</option>
+            <option value="atingimento">% Atingimento</option>
+            <option value="gap">Gap</option>
+          </select>
+        </div>
+        <ol class="ranking worst" id="rankingBottom"></ol>
         <p class="caption text-danger">Atenção especial para os representantes em vermelho.</p>
       </div>
     </section>
@@ -246,15 +260,17 @@
               <th>Preço médio</th>
               <th>Média pedidos</th>
               <th>Clientes novos</th>
-              <th>Meta coleção</th>
-              <th>Qtd. meta</th>
-              <th>Atingimento meta</th>
-              <th>Gap meta</th>
+              <th>Meta (R$)</th>
+              <th>Atingimento (%)</th>
+              <th>Gap (R$)</th>
+              <th>Meta pedidos</th>
+              <th>Atingimento pedidos (%)</th>
+              <th>Status meta</th>
             </tr>
           </thead>
           <tbody>
             {% for vendedor in vendedores %}
-            <tr class="row-{{ vendedor.meta_status_class }}">
+            <tr class="row-{{ vendedor.meta_status_class }}" data-meta-status="{{ 'pendente' if vendedor.percentual_meta is none and vendedor.meta_pedidos <= 0 else 'ok' }}">
               <td>{{ vendedor.codigo }}</td>
               <td>{{ vendedor.nome }}</td>
               <td>{{ vendedor.qtde_item }}</td>
@@ -270,28 +286,42 @@
                 {% if vendedor.valor_meta > 0 %}
                 R$ {{ "{:,.2f}".format(vendedor.valor_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                 {% else %}
-                -
-                {% endif %}
-              </td>
-              <td>
-                {% if vendedor.qtde_meta > 0 %}
-                {{ vendedor.qtde_meta }}
-                {% else %}
-                -
+                —
                 {% endif %}
               </td>
               <td>
                 {% if vendedor.percentual_meta is not none %}
                 <span class="status-pill {{ vendedor.meta_status_class }}">{{ "{:.1f}%".format(vendedor.percentual_meta * 100) }}</span>
                 {% else %}
-                <span class="status-pill status-neutral">Sem meta</span>
+                —
                 {% endif %}
               </td>
               <td>
                 {% if vendedor.gap_meta is not none %}
                 R$ {{ "{:,.2f}".format(vendedor.gap_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                 {% else %}
-                -
+                —
+                {% endif %}
+              </td>
+              <td>
+                {% if vendedor.meta_pedidos > 0 %}
+                {{ vendedor.meta_pedidos }}
+                {% else %}
+                —
+                {% endif %}
+              </td>
+              <td>
+                {% if vendedor.percentual_pedidos is not none %}
+                {{ "{:.1f}%".format(vendedor.percentual_pedidos * 100) }}
+                {% else %}
+                —
+                {% endif %}
+              </td>
+              <td>
+                {% if vendedor.percentual_meta is not none or vendedor.meta_pedidos > 0 %}
+                <span class="status-pill status-good">Meta cadastrada</span>
+                {% else %}
+                <span class="status-pill status-neutral">Meta pendente</span>
                 {% endif %}
               </td>
             </tr>
@@ -310,6 +340,7 @@
   {% if data_loaded %}
   <script>
     const chartData = {{ chart_data | safe }};
+    const rankingData = {{ ranking_data | safe }};
     const ctx = document.getElementById('chartVendas');
     new Chart(ctx, {
       type: 'bar',
@@ -334,6 +365,64 @@
           }
         }
       }
+    });
+
+    const formatterCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const formatterPercent = new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 1 });
+
+    const rankingSelect = document.getElementById('rankingSelect');
+    const rankingSelectBottom = document.getElementById('rankingSelectBottom');
+    const rankingTop = document.getElementById('rankingTop');
+    const rankingBottom = document.getElementById('rankingBottom');
+
+    const formatRankingValue = (metric, value) => {
+      if (metric === 'atingimento') {
+        return formatterPercent.format(value);
+      }
+      return formatterCurrency.format(value || 0);
+    };
+
+    const renderRankingList = (metric) => {
+      const selected = rankingData[metric];
+      rankingTop.innerHTML = selected.top.map(item => `
+        <li>
+          <span>${item.nome}</span>
+          <strong>${formatRankingValue(metric, item.valor)}</strong>
+        </li>
+      `).join('');
+      rankingBottom.innerHTML = selected.bottom.map(item => `
+        <li>
+          <span>${item.nome}</span>
+          <strong>${formatRankingValue(metric, item.valor)}</strong>
+        </li>
+      `).join('');
+    };
+
+    const syncRankingSelects = (value) => {
+      rankingSelect.value = value;
+      rankingSelectBottom.value = value;
+      renderRankingList(value);
+    };
+
+    rankingSelect.addEventListener('change', (event) => {
+      syncRankingSelects(event.target.value);
+    });
+
+    rankingSelectBottom.addEventListener('change', (event) => {
+      syncRankingSelects(event.target.value);
+    });
+
+    syncRankingSelects('valor');
+
+    const filterButtons = document.querySelectorAll('[data-filter="pendente"]');
+    filterButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const isActive = button.classList.toggle('active');
+        document.querySelectorAll('.table-wrapper tbody tr').forEach(row => {
+          const isPending = row.dataset.metaStatus === 'pendente';
+          row.style.display = !isActive || isPending ? '' : 'none';
+        });
+      });
     });
   </script>
   {% endif %}
