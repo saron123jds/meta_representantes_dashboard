@@ -88,9 +88,14 @@ def build_summary(df: pd.DataFrame) -> dict:
     total_vendedores = df.shape[0]
     total_itens = int(df["QTDEITEM"].sum()) if "QTDEITEM" in df.columns else 0
     total_vendas = float(df["VLR_LIQUIDO"].sum()) if "VLR_LIQUIDO" in df.columns else 0.0
+    total_pedidos = int(df["TOTAL_PEDIDOS"].sum()) if "TOTAL_PEDIDOS" in df.columns else 0
     total_clientes = int(df["TOTAL_CLIENTES"].sum()) if "TOTAL_CLIENTES" in df.columns else 0
     ativos = int(df["CLIENTES_ATIVOS"].sum()) if "CLIENTES_ATIVOS" in df.columns else 0
     novos = int(df["CLIENTES_NOVOS"].sum()) if "CLIENTES_NOVOS" in df.columns else 0
+    total_meta = (
+        float(df["VALOR_META_COLECAO"].sum()) if "VALOR_META_COLECAO" in df.columns else 0.0
+    )
+    percentual_meta = total_vendas / total_meta if total_meta else 0.0
 
     ranking_vendas = (
         df.sort_values("VLR_LIQUIDO", ascending=False)
@@ -99,20 +104,36 @@ def build_summary(df: pd.DataFrame) -> dict:
         if "VLR_LIQUIDO" in df.columns
         else []
     )
+    destaque = (
+        df.sort_values("VLR_LIQUIDO", ascending=False)
+        .head(1)[["NOME_VENDEDOR", "VLR_LIQUIDO"]]
+        .to_dict(orient="records")
+    )
+    vendedor_destaque = destaque[0] if destaque else {"NOME_VENDEDOR": "-", "VLR_LIQUIDO": 0.0}
 
     return {
         "total_vendedores": total_vendedores,
         "total_itens": total_itens,
         "total_vendas": total_vendas,
+        "total_pedidos": total_pedidos,
         "total_clientes": total_clientes,
         "clientes_ativos": ativos,
         "clientes_novos": novos,
+        "total_meta": total_meta,
+        "percentual_meta": percentual_meta,
         "ranking_vendas": ranking_vendas,
+        "vendedor_destaque": vendedor_destaque,
     }
 
 
 def build_insights(df: pd.DataFrame) -> dict:
-    insights = {}
+    insights = {
+        "ticket_medio": 0.0,
+        "media_itens_por_pedido": 0.0,
+        "taxa_clientes_ativos": 0.0,
+        "media_pedidos_por_cliente": 0.0,
+        "clientes_por_vendedor": 0.0,
+    }
     if "VLR_LIQUIDO" in df.columns:
         insights["ticket_medio"] = float(df["VLR_LIQUIDO"].sum()) / max(
             df["TOTAL_PEDIDOS"].sum(), 1
@@ -124,6 +145,14 @@ def build_insights(df: pd.DataFrame) -> dict:
     if "CLIENTES_ATIVOS" in df.columns:
         insights["taxa_clientes_ativos"] = (
             float(df["CLIENTES_ATIVOS"].sum()) / max(df["TOTAL_CLIENTES"].sum(), 1)
+        )
+    if "TOTAL_PEDIDOS" in df.columns and "TOTAL_CLIENTES" in df.columns:
+        insights["media_pedidos_por_cliente"] = float(df["TOTAL_PEDIDOS"].sum()) / max(
+            df["TOTAL_CLIENTES"].sum(), 1
+        )
+    if "TOTAL_CLIENTES" in df.columns:
+        insights["clientes_por_vendedor"] = float(df["TOTAL_CLIENTES"].sum()) / max(
+            df.shape[0], 1
         )
     return insights
 
