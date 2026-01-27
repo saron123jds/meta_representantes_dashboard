@@ -138,6 +138,11 @@
         <p class="caption">Média geral considerando todos os pedidos.</p>
       </div>
       <div class="card">
+        <h3>Venda por vendedor</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(insights.media_venda_por_vendedor).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+        <p class="caption">Produtividade média por representante.</p>
+      </div>
+      <div class="card">
         <h3>Itens por pedido</h3>
         <p class="value">{{ "{:.2f}".format(insights.media_itens_por_pedido) }}</p>
         <p class="caption">Quantidade média de itens por pedido.</p>
@@ -153,9 +158,34 @@
         <p class="caption">Frequência média de pedidos por cliente.</p>
       </div>
       <div class="card">
+        <h3>Ticket por cliente</h3>
+        <p class="value">R$ {{ "{:,.2f}".format(insights.ticket_medio_cliente).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+        <p class="caption">Valor médio faturado por cliente.</p>
+      </div>
+      <div class="card">
         <h3>Clientes por vendedor</h3>
         <p class="value">{{ "{:.1f}".format(insights.clientes_por_vendedor) }}</p>
         <p class="caption">Distribuição média da carteira.</p>
+      </div>
+    </section>
+
+    <section class="grid alerts">
+      <div class="card alert-card">
+        <h3>Alertas prioritários</h3>
+        <ul class="alert-list">
+          <li>
+            <span>Vendedores abaixo de 50% da meta</span>
+            <strong class="text-danger">{{ summary.vendedores_abaixo_meta }}</strong>
+          </li>
+          <li>
+            <span>Vendedores sem meta informada</span>
+            <strong>{{ summary.vendedores_sem_meta }}</strong>
+          </li>
+          <li>
+            <span>Carteiras sem clientes ativos</span>
+            <strong class="text-danger">{{ summary.vendedores_sem_clientes_ativos }}</strong>
+          </li>
+        </ul>
       </div>
     </section>
 
@@ -174,6 +204,18 @@
           </li>
           {% endfor %}
         </ol>
+      </div>
+      <div class="card">
+        <h3>Piores 5 por valor líquido</h3>
+        <ol class="ranking worst">
+          {% for item in summary.ranking_piores %}
+          <li>
+            <span>{{ item.NOME_VENDEDOR }}</span>
+            <strong>R$ {{ "{:,.2f}".format(item.VLR_LIQUIDO).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+          </li>
+          {% endfor %}
+        </ol>
+        <p class="caption text-danger">Atenção especial para os representantes em vermelho.</p>
       </div>
     </section>
 
@@ -201,11 +243,13 @@
               <th>Clientes novos</th>
               <th>Meta coleção</th>
               <th>Qtd. meta</th>
+              <th>Atingimento meta</th>
+              <th>Gap meta</th>
             </tr>
           </thead>
           <tbody>
             {% for vendedor in vendedores %}
-            <tr>
+            <tr class="row-{{ vendedor.meta_status_class }}">
               <td>{{ vendedor.codigo }}</td>
               <td>{{ vendedor.nome }}</td>
               <td>{{ vendedor.qtde_item }}</td>
@@ -217,8 +261,34 @@
               <td>R$ {{ "{:,.2f}".format(vendedor.preco_medio).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
               <td>R$ {{ "{:,.2f}".format(vendedor.media_pedidos).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
               <td>{{ vendedor.clientes_novos }}</td>
-              <td>{{ vendedor.valor_meta }}</td>
-              <td>{{ vendedor.qtde_meta }}</td>
+              <td>
+                {% if vendedor.valor_meta > 0 %}
+                R$ {{ "{:,.2f}".format(vendedor.valor_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                {% else %}
+                -
+                {% endif %}
+              </td>
+              <td>
+                {% if vendedor.qtde_meta > 0 %}
+                {{ vendedor.qtde_meta }}
+                {% else %}
+                -
+                {% endif %}
+              </td>
+              <td>
+                {% if vendedor.percentual_meta is not none %}
+                <span class="status-pill {{ vendedor.meta_status_class }}">{{ "{:.1f}%".format(vendedor.percentual_meta * 100) }}</span>
+                {% else %}
+                <span class="status-pill status-neutral">Sem meta</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if vendedor.gap_meta is not none %}
+                R$ {{ "{:,.2f}".format(vendedor.gap_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                {% else %}
+                -
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
