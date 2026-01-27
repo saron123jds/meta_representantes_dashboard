@@ -68,6 +68,10 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.executive {
+  grid-template-columns: 1fr;
+}
+
 .card {
   background: var(--card);
   border-radius: 16px;
@@ -79,6 +83,91 @@ body {
 .card.highlight {
   background: linear-gradient(140deg, #ffffff, #eef2ff);
   border-color: #e0e7ff;
+}
+
+.executive-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.executive-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.eyebrow.small {
+  font-size: 0.7rem;
+  margin-bottom: 6px;
+}
+
+.status-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-good {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-alert {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-neutral {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.executive-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.metric span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.metric strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.4rem;
+}
+
+.progress {
+  height: 10px;
+  background: #eef2ff;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1d4ed8, #38bdf8);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.meta-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .card h3 {

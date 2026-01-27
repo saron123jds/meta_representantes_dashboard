@@ -96,6 +96,39 @@ def build_summary(df: pd.DataFrame) -> dict:
         float(df["VALOR_META_COLECAO"].sum()) if "VALOR_META_COLECAO" in df.columns else 0.0
     )
     percentual_meta = total_vendas / total_meta if total_meta else 0.0
+    meta_gap = total_meta - total_vendas
+    valor_faltante = max(meta_gap, 0.0)
+    valor_excedente = max(-meta_gap, 0.0)
+
+    if total_meta <= 0:
+        meta_status_label = "Meta não definida"
+        meta_status_class = "status-neutral"
+        meta_status_detail = "Sem meta cadastrada para o período."
+    elif percentual_meta >= 1:
+        meta_status_label = "Meta atingida"
+        meta_status_class = "status-good"
+        meta_status_detail = (
+            f"Acima da meta em R$ {valor_excedente:,.2f}".replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
+    elif percentual_meta >= 0.8:
+        meta_status_label = "Reta final"
+        meta_status_class = "status-warning"
+        meta_status_detail = (
+            f"Faltam R$ {valor_faltante:,.2f} para atingir a meta.".replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
+    else:
+        meta_status_label = "Atenção"
+        meta_status_class = "status-alert"
+        meta_status_detail = (
+            f"Faltam R$ {valor_faltante:,.2f} para atingir a meta.".replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
+    meta_progress = min(percentual_meta * 100, 100)
 
     ranking_vendas = (
         df.sort_values("VLR_LIQUIDO", ascending=False)
@@ -121,6 +154,11 @@ def build_summary(df: pd.DataFrame) -> dict:
         "clientes_novos": novos,
         "total_meta": total_meta,
         "percentual_meta": percentual_meta,
+        "meta_progress": meta_progress,
+        "meta_status_label": meta_status_label,
+        "meta_status_class": meta_status_class,
+        "meta_status_detail": meta_status_detail,
+        "valor_faltante": valor_faltante,
         "ranking_vendas": ranking_vendas,
         "vendedor_destaque": vendedor_destaque,
     }
