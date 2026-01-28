@@ -128,6 +128,41 @@ a {
   color: #b45309;
 }
 
+.filter-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.filter-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.filter-row label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.filter-row input,
+.filter-row select {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .hero-card {
   background: var(--card);
   padding: 20px;
@@ -175,6 +210,10 @@ a {
 }
 
 .executive {
+  grid-template-columns: 1fr;
+}
+
+.bi {
   grid-template-columns: 1fr;
 }
 

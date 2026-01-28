@@ -43,6 +43,41 @@
         <p class="meta warning">Nenhum arquivo encontrado. Coloque um arquivo {{ supported_extensions }} na pasta acima.</p>
         {% endif %}
         {% endif %}
+        {% if data_loaded %}
+        <form class="filter-form" method="get">
+          <div class="filter-row">
+            <label>
+              <span>Emissão (início)</span>
+              <input type="date" name="start_date" value="{{ filters.start_date }}">
+            </label>
+            <label>
+              <span>Emissão (fim)</span>
+              <input type="date" name="end_date" value="{{ filters.end_date }}">
+            </label>
+            <label>
+              <span>Status do orçamento</span>
+              <select name="status">
+                <option value="">Todos</option>
+                {% for status in status_options %}
+                <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>
+              <span>Cliente</span>
+              <select name="cliente_ativo">
+                <option value="">Todos</option>
+                <option value="ativo" {% if filters.cliente_ativo == 'ativo' %}selected{% endif %}>Ativo</option>
+                <option value="inativo" {% if filters.cliente_ativo == 'inativo' %}selected{% endif %}>Inativo</option>
+              </select>
+            </label>
+          </div>
+          <div class="filter-actions">
+            <button class="btn-primary" type="submit">Aplicar filtros</button>
+            <a class="btn-ghost" href="/">Limpar</a>
+          </div>
+        </form>
+        {% endif %}
       </div>
       <div class="hero-card">
         <h3>Status das metas cadastradas</h3>
@@ -189,6 +224,18 @@
         <h3>Clientes por vendedor</h3>
         <p class="value">{{ "{:.1f}".format(insights.clientes_por_vendedor) }}</p>
         <p class="caption">Distribuição média da carteira.</p>
+      </div>
+    </section>
+
+    <section class="grid bi">
+      <div class="card">
+        <h3>Sugestões rápidas para BI</h3>
+        <ul class="info-list">
+          <li>Montar um funil Orçamento → Pedido → Nota, destacando taxa de conversão por representante.</li>
+          <li>Analisar tempo médio entre emissão do orçamento e pedido gerado para priorizar follow-ups.</li>
+          <li>Comparar ticket médio por tipo de entrega para ajustar políticas logísticas.</li>
+          <li>Acompanhar reativação de clientes inativos e impacto no valor líquido.</li>
+        </ul>
       </div>
     </section>
 

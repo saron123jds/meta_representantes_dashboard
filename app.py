@@ -158,6 +158,25 @@ def parse_ptbr_number(raw_value: str | None) -> float | None:
         return None
 
 
+def parse_ptbr_date(raw_value: str | None) -> datetime | None:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, datetime):
+        return raw_value
+    value = str(raw_value).strip()
+    if not value:
+        return None
+    try:
+        parsed = pd.to_datetime(value, errors="coerce", dayfirst=True)
+    except Exception:
+        return None
+    if pd.isna(parsed):
+        return None
+    if isinstance(parsed, pd.Timestamp):
+        return parsed.to_pydatetime()
+    return parsed
+
+
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [column.strip().upper() for column in df.columns]
     original_columns = set(df.columns)
@@ -224,6 +243,7 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         "PRECO_MEDIO": ["PRECO_MEDIO", "PREÇO_MEDIO", "VALOR_MEDIO"],
         "MEDIA_PEDIDOS": ["MEDIA_PEDIDOS", "MEDIA_PEDIDO"],
         "QTDE_MEDIA": ["QTDE_MEDIA", "MEDIA_ITENS"],
+        "EMISSAO": ["DATA_EMISSAO", "DATA DE EMISSAO", "DATA DE EMISSÃO", "EMISSAO"],
     }
     for target, options in column_aliases.items():
         column = pick_column([target] + options)
@@ -263,7 +283,12 @@ def normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def aggregate_order_report(df: pd.DataFrame) -> pd.DataFrame:
+def aggregate_order_report(
+    df: pd.DataFrame,
+    *,
+    period_start: datetime | None = None,
+    period_end: datetime | None = None,
+) -> pd.DataFrame:
     if df.empty:
         return df
     if "TOTAL_PEDIDOS" in df.columns or "TOTAL_CLIENTES" in df.columns:
@@ -311,8 +336,13 @@ def aggregate_order_report(df: pd.DataFrame) -> pd.DataFrame:
         cadastro_dates = pd.to_datetime(
             work_df[cadastro_column], errors="coerce", dayfirst=True
         )
-        current_year = datetime.now().year
-        work_df["_is_new_client"] = cadastro_dates.dt.year == current_year
+        if period_start and period_end:
+            work_df["_is_new_client"] = cadastro_dates.between(
+                period_start, period_end, inclusive="both"
+            )
+        else:
+            current_year = datetime.now().year
+            work_df["_is_new_client"] = cadastro_dates.dt.year == current_year
     else:
         work_df["_is_new_client"] = False
 
@@ -332,7 +362,8 @@ def aggregate_order_report(df: pd.DataFrame) -> pd.DataFrame:
             grouped.apply(
                 lambda group: group.loc[group["_active_client"], "_client_id"]
                 .dropna()
-                .nunique()
+                .nunique(),
+                include_groups=False,
             )
             .values
         )
@@ -340,7 +371,8 @@ def aggregate_order_report(df: pd.DataFrame) -> pd.DataFrame:
             grouped.apply(
                 lambda group: group.loc[group["_is_new_client"], "_client_id"]
                 .dropna()
-                .nunique()
+                .nunique(),
+                include_groups=False,
             )
             .values
         )
@@ -373,6 +405,86 @@ def aggregate_order_report(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return normalize_numeric_columns(aggregated)
+
+
+def detect_date_column(df: pd.DataFrame) -> str | None:
+    for option in ["EMISSAO", "DATA_EMISSAO", "DATA DE EMISSAO"]:
+        if option in df.columns:
+            return option
+    return None
+
+
+def detect_status_column(df: pd.DataFrame) -> str | None:
+    for option in [
+        "DESCRICAO_STATUS",
+        "STATUS_ORCAMENTO",
+        "STATUS",
+        "ORCAMENTO_STATUS_LOG",
+    ]:
+        if option in df.columns:
+            return option
+    return None
+
+
+def detect_cliente_ativo_column(df: pd.DataFrame) -> str | None:
+    for option in ["CLIENTE_ATIVO", "STATUS_CLIENTE"]:
+        if option in df.columns:
+            return option
+    return None
+
+
+def normalize_status_value(raw_value: str | None) -> str:
+    return str(raw_value or "").strip().upper()
+
+
+def is_cliente_ativo(value: str | None) -> bool:
+    return normalize_status_value(value) in {
+        "SIM",
+        "S",
+        "ATIVO",
+        "ATIVA",
+        "1",
+        "TRUE",
+        "VERDADEIRO",
+    }
+
+
+def apply_report_filters(
+    df: pd.DataFrame,
+    *,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    status_filter: str | None = None,
+    cliente_ativo: str | None = None,
+) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    filtered = df.copy()
+    date_column = detect_date_column(filtered)
+    if date_column and (start_date or end_date):
+        date_series = pd.to_datetime(filtered[date_column], errors="coerce", dayfirst=True)
+        if start_date:
+            filtered = filtered.loc[date_series >= start_date]
+        if end_date:
+            filtered = filtered.loc[date_series <= end_date]
+
+    if status_filter:
+        status_column = detect_status_column(filtered)
+        if status_column:
+            target = normalize_status_value(status_filter)
+            filtered = filtered.loc[
+                filtered[status_column].apply(lambda value: normalize_status_value(value))
+                == target
+            ]
+
+    if cliente_ativo in {"ativo", "inativo"}:
+        active_column = detect_cliente_ativo_column(filtered)
+        if active_column:
+            is_active = filtered[active_column].apply(is_cliente_ativo)
+            filtered = filtered.loc[is_active] if cliente_ativo == "ativo" else filtered.loc[~is_active]
+
+    return filtered
 
 
 def get_current_config(store: dict) -> dict:
@@ -427,7 +539,7 @@ def build_metas_map(store: dict, ano: int, colecao: str) -> dict:
     return metas_map
 
 
-def load_report(path: Path) -> pd.DataFrame:
+def load_report_raw(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
         csv_kwargs = {"sep": None, "engine": "python"}
         encodings_to_try = ("utf-8-sig", "utf-8", "utf-16", "cp1252", "latin1")
@@ -451,13 +563,24 @@ def load_report(path: Path) -> pd.DataFrame:
         df = pd.read_excel(path)
     df = normalize_columns(df)
     df = normalize_numeric_columns(df)
-    df = aggregate_order_report(df)
     return df
+
+
+def load_report(path: Path) -> pd.DataFrame:
+    df = load_report_raw(path)
+    return aggregate_order_report(df)
 
 
 def load_report_safe(path: Path) -> tuple[pd.DataFrame, str | None]:
     try:
         return load_report(path), None
+    except Exception:
+        return pd.DataFrame(), "Não foi possível carregar o relatório. Verifique o formato do arquivo."
+
+
+def load_report_safe_raw(path: Path) -> tuple[pd.DataFrame, str | None]:
+    try:
+        return load_report_raw(path), None
     except Exception:
         return pd.DataFrame(), "Não foi possível carregar o relatório. Verifique o formato do arquivo."
 
@@ -756,7 +879,7 @@ def dashboard():
             supported_extensions=", ".join(sorted(SUPPORTED_EXTENSIONS)),
         )
 
-    df, report_error = load_report_safe(latest_file)
+    raw_df, report_error = load_report_safe_raw(latest_file)
     if report_error:
         return render_template(
             "index.html",
@@ -767,6 +890,22 @@ def dashboard():
             supported_extensions=", ".join(sorted(SUPPORTED_EXTENSIONS)),
             report_error=report_error,
         )
+    start_date = parse_ptbr_date(request.args.get("start_date"))
+    end_date = parse_ptbr_date(request.args.get("end_date"))
+    status_filter = request.args.get("status") or None
+    cliente_ativo = request.args.get("cliente_ativo") or None
+
+    filtered_df = apply_report_filters(
+        raw_df,
+        start_date=start_date,
+        end_date=end_date,
+        status_filter=status_filter,
+        cliente_ativo=cliente_ativo,
+    )
+    df = aggregate_order_report(
+        filtered_df, period_start=start_date, period_end=end_date
+    )
+
     store = load_data_store()
     if sync_representantes(store, df):
         save_data_store(store)
@@ -784,6 +923,17 @@ def dashboard():
         }
     )
 
+    status_options = []
+    status_column = detect_status_column(raw_df)
+    if status_column:
+        status_options = sorted(
+            {
+                normalize_status_value(value)
+                for value in raw_df[status_column].dropna().unique()
+                if str(value).strip()
+            }
+        )
+
     return render_template(
         "index.html",
         data_loaded=True,
@@ -796,6 +946,15 @@ def dashboard():
         vendedores=vendedores,
         chart_data=chart_data,
         ranking_data=json.dumps(ranking_data),
+        filters={
+            "start_date": start_date.strftime("%Y-%m-%d") if start_date else "",
+            "end_date": end_date.strftime("%Y-%m-%d") if end_date else "",
+            "status": normalize_status_value(status_filter)
+            if status_filter
+            else "",
+            "cliente_ativo": cliente_ativo or "",
+        },
+        status_options=status_options,
     )
 
 
