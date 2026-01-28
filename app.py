@@ -9,7 +9,7 @@ from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 
 DEFAULT_EXPORT_DIR = r"C:\\META REPRESENTANTES\\Exporta"
-SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".csv", ".tsv", ".txt"}
+SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
 DATA_DIR = Path("data")
 DATA_STORE_FILE = DATA_DIR / "metas.json"
 DEFAULT_COLLECTION = "PRIMAVERA"
@@ -188,7 +188,11 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         return None
 
     rename_map = {}
-    if "VENDEDOR" in df.columns and "CODIGO" in df.columns:
+    if (
+        "VENDEDOR" in df.columns
+        and "CODIGO" in df.columns
+        and "CODIGO_PEDIDO" not in df.columns
+    ):
         order_signals = [
             "DOCUMENTO",
             "NUM_OS",
@@ -540,7 +544,7 @@ def build_metas_map(store: dict, ano: int, colecao: str) -> dict:
 
 
 def load_report_raw(path: Path) -> pd.DataFrame:
-    if path.suffix.lower() in {".csv", ".tsv", ".txt"}:
+    if path.suffix.lower() == ".csv":
         csv_kwargs = {"engine": "python"}
         encodings_to_try = ("utf-8-sig", "utf-8", "utf-16", "cp1252", "latin1")
         df = None
