@@ -178,7 +178,7 @@ def parse_ptbr_date(raw_value: str | None) -> datetime | None:
 
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [column.strip().upper() for column in df.columns]
+    df.columns = [str(column).strip().upper() for column in df.columns]
     original_columns = set(df.columns)
 
     def pick_column(options: list[str]) -> str | None:
