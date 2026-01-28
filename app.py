@@ -188,7 +188,11 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         return None
 
     rename_map = {}
-    if "VENDEDOR" in df.columns and "CODIGO" in df.columns:
+    if (
+        "VENDEDOR" in df.columns
+        and "CODIGO" in df.columns
+        and "CODIGO_PEDIDO" not in df.columns
+    ):
         order_signals = [
             "DOCUMENTO",
             "NUM_OS",
