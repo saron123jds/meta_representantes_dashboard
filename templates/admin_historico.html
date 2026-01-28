@@ -75,12 +75,12 @@
           </div>
           <div class="form-row">
             <label class="form-field" for="meta">
-              <span>Meta</span>
-              <input id="meta" name="meta" type="text" placeholder="Ex: 80.000,00" required>
+              <span>Meta (peças)</span>
+              <input id="meta" name="meta" type="text" placeholder="Ex: 800" required>
             </label>
             <label class="form-field" for="realizado">
-              <span>Realizado (opcional)</span>
-              <input id="realizado" name="realizado" type="text" placeholder="Ex: 75.000,00">
+              <span>Realizado (peças, opcional)</span>
+              <input id="realizado" name="realizado" type="text" placeholder="Ex: 750">
             </label>
           </div>
           <div class="form-actions">
@@ -115,8 +115,8 @@
               <th>Representante</th>
               <th>Ano</th>
               <th>Coleção</th>
-              <th>Meta</th>
-              <th>Realizado</th>
+              <th>Meta (peças)</th>
+              <th>Realizado (peças)</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -141,8 +141,8 @@
                   {% endfor %}
                 </select>
               </td>
-              <td><input name="meta" form="update-{{ item.id }}" type="text" value="{{ "{:,.2f}".format(item.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}" required></td>
-              <td><input name="realizado" form="update-{{ item.id }}" type="text" value="{% if item.realizado is not none %}{{ "{:,.2f}".format(item.realizado).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}"></td>
+              <td><input name="meta" form="update-{{ item.id }}" type="text" value="{{ "{:,.0f}".format(item.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}" required></td>
+              <td><input name="realizado" form="update-{{ item.id }}" type="text" value="{% if item.realizado is not none %}{{ "{:,.0f}".format(item.realizado).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}"></td>
               <td class="table-actions">
                 <button class="btn-secondary" form="update-{{ item.id }}" type="submit">Salvar</button>
                   <form method="post" class="inline-form" onsubmit="return confirm('Deseja remover este histórico?');">

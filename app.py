@@ -455,6 +455,13 @@ def load_report(path: Path) -> pd.DataFrame:
     return df
 
 
+def load_report_safe(path: Path) -> tuple[pd.DataFrame, str | None]:
+    try:
+        return load_report(path), None
+    except Exception:
+        return pd.DataFrame(), "Não foi possível carregar o relatório. Verifique o formato do arquivo."
+
+
 def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
     total_vendedores = df.shape[0]
     total_itens = int(df["QTDEITEM"].sum()) if "QTDEITEM" in df.columns else 0
@@ -464,7 +471,7 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
     ativos = int(df["CLIENTES_ATIVOS"].sum()) if "CLIENTES_ATIVOS" in df.columns else 0
     novos = int(df["CLIENTES_NOVOS"].sum()) if "CLIENTES_NOVOS" in df.columns else 0
     total_meta = 0.0
-    total_vendas_com_meta = 0.0
+    total_itens_com_meta = 0.0
     gap_total = 0.0
     vendedores_com_meta = 0
     vendedores_acima_meta = 0
@@ -474,23 +481,26 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
         rep_id = normalize_identifier(row.get("CODIGO"), row.get("NOME_VENDEDOR"))
         meta_data = metas_map.get(rep_id, {})
         meta_valor = meta_data.get("meta")
-        vlr_liquido = float(row.get("VLR_LIQUIDO") or 0)
+        qtde_itens = float(row.get("QTDEITEM") or 0)
         if meta_valor and meta_valor > 0:
             vendedores_com_meta += 1
             total_meta += meta_valor
-            total_vendas_com_meta += vlr_liquido
-            gap_total += max(meta_valor - vlr_liquido, 0.0)
-            if vlr_liquido / meta_valor >= 1:
+            total_itens_com_meta += qtde_itens
+            gap_total += max(meta_valor - qtde_itens, 0.0)
+            if qtde_itens / meta_valor >= 1:
                 vendedores_acima_meta += 1
             else:
                 vendedores_abaixo_meta += 1
         else:
             vendedores_sem_meta += 1
 
-    percentual_meta = total_vendas_com_meta / total_meta if total_meta else 0.0
-    meta_gap = total_meta - total_vendas_com_meta
-    valor_faltante = max(meta_gap, 0.0)
-    valor_excedente = max(-meta_gap, 0.0)
+    percentual_meta = total_itens_com_meta / total_meta if total_meta else 0.0
+    meta_gap = total_meta - total_itens_com_meta
+    itens_faltantes = max(meta_gap, 0.0)
+    itens_excedentes = max(-meta_gap, 0.0)
+
+    def format_pieces(value: float) -> str:
+        return f"{value:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     if total_meta <= 0:
         meta_status_label = "Metas pendentes"
@@ -499,27 +509,15 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
     elif percentual_meta >= 1:
         meta_status_label = "Meta atingida"
         meta_status_class = "status-good"
-        meta_status_detail = (
-            f"Acima da meta em R$ {valor_excedente:,.2f}".replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
+        meta_status_detail = f"Acima da meta em {format_pieces(itens_excedentes)} peças."
     elif percentual_meta >= 0.8:
         meta_status_label = "Reta final"
         meta_status_class = "status-warning"
-        meta_status_detail = (
-            f"Faltam R$ {valor_faltante:,.2f} para atingir a meta.".replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
+        meta_status_detail = f"Faltam {format_pieces(itens_faltantes)} peças para atingir a meta."
     else:
         meta_status_label = "Atenção"
         meta_status_class = "status-alert"
-        meta_status_detail = (
-            f"Faltam R$ {valor_faltante:,.2f} para atingir a meta.".replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
+        meta_status_detail = f"Faltam {format_pieces(itens_faltantes)} peças para atingir a meta."
     meta_progress = min(percentual_meta * 100, 100)
 
     ranking_vendas = (
@@ -574,7 +572,7 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
         "meta_status_label": meta_status_label,
         "meta_status_class": meta_status_class,
         "meta_status_detail": meta_status_detail,
-        "valor_faltante": valor_faltante,
+        "valor_faltante": itens_faltantes,
         "gap_total": gap_total,
         "ranking_vendas": ranking_vendas,
         "ranking_piores": ranking_piores,
@@ -644,14 +642,15 @@ def build_vendedores(df: pd.DataFrame, metas_map: dict) -> list[dict]:
         meta_data = metas_map.get(rep_id, {})
         valor_meta = safe_value(meta_data.get("meta"), 0.0)
         vlr_liquido = safe_value(row.get("VLR_LIQUIDO"), 0.0)
+        qtde_itens = safe_value(row.get("QTDEITEM"), 0.0)
         percentual_meta = None
         gap_meta = None
         meta_status_class = "status-neutral"
         meta_status_label = "Sem meta cadastrada"
 
         if valor_meta and valor_meta > 0:
-            percentual_meta = vlr_liquido / valor_meta
-            gap_meta = valor_meta - vlr_liquido
+            percentual_meta = qtde_itens / valor_meta
+            gap_meta = valor_meta - qtde_itens
             if percentual_meta >= 1:
                 meta_status_class = "status-good"
                 meta_status_label = "Meta atingida"
@@ -667,7 +666,7 @@ def build_vendedores(df: pd.DataFrame, metas_map: dict) -> list[dict]:
                 "codigo": row.get("CODIGO"),
                 "nome": row.get("NOME_VENDEDOR"),
                 "identificador": rep_id,
-                "qtde_item": safe_value(row.get("QTDEITEM")),
+                "qtde_item": qtde_itens,
                 "total_pedidos": safe_value(row.get("TOTAL_PEDIDOS")),
                 "total_clientes": safe_value(row.get("TOTAL_CLIENTES")),
                 "clientes_ativos": safe_value(row.get("CLIENTES_ATIVOS")),
@@ -757,7 +756,17 @@ def dashboard():
             supported_extensions=", ".join(sorted(SUPPORTED_EXTENSIONS)),
         )
 
-    df = load_report(latest_file)
+    df, report_error = load_report_safe(latest_file)
+    if report_error:
+        return render_template(
+            "index.html",
+            data_loaded=False,
+            export_dir=str(export_dir),
+            latest_file=latest_file.name,
+            updated_at=datetime.fromtimestamp(latest_file.stat().st_mtime),
+            supported_extensions=", ".join(sorted(SUPPORTED_EXTENSIONS)),
+            report_error=report_error,
+        )
     store = load_data_store()
     if sync_representantes(store, df):
         save_data_store(store)
@@ -842,7 +851,7 @@ def admin_metas():
     export_dir = resolve_export_dir()
     latest_file = find_latest_file(export_dir)
     store = load_data_store()
-    df = load_report(latest_file) if latest_file else pd.DataFrame()
+    df, _ = load_report_safe(latest_file) if latest_file else (pd.DataFrame(), None)
     if sync_representantes(store, df):
         save_data_store(store)
     config = get_current_config(store)
@@ -1068,7 +1077,7 @@ def admin_historico():
     export_dir = resolve_export_dir()
     latest_file = find_latest_file(export_dir)
     store = load_data_store()
-    df = load_report(latest_file) if latest_file else pd.DataFrame()
+    df, _ = load_report_safe(latest_file) if latest_file else (pd.DataFrame(), None)
     if sync_representantes(store, df):
         save_data_store(store)
     message = None
@@ -1213,7 +1222,13 @@ def representante_detail(rep_id: str):
             representante=None,
         )
 
-    df = load_report(latest_file)
+    df, report_error = load_report_safe(latest_file)
+    if report_error:
+        return render_template(
+            "representante_detail.html",
+            data_loaded=False,
+            representante=None,
+        )
     store = load_data_store()
     if sync_representantes(store, df):
         save_data_store(store)
