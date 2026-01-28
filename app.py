@@ -557,6 +557,13 @@ def load_report_raw(path: Path) -> pd.DataFrame:
                 return ","
             return None
 
+        def decode_header_line(encoding: str) -> str | None:
+            try:
+                with path.open("r", encoding=encoding, errors="ignore") as file_handle:
+                    return file_handle.readline().strip()
+            except Exception:
+                return None
+
         separator = detect_separator(sample)
         separators_to_try = [separator, None] if separator else [None, "\t", ";", ","]
 
@@ -566,6 +573,9 @@ def load_report_raw(path: Path) -> pd.DataFrame:
             except UnicodeDecodeError:
                 continue
 
+            header_line = decode_header_line(encoding) or ""
+            has_whitespace_headers = bool(re.search(r"\S+\s+\S+", header_line))
+
             for sep in separators_to_try:
                 try:
                     read_kwargs = {**csv_kwargs}
@@ -574,6 +584,15 @@ def load_report_raw(path: Path) -> pd.DataFrame:
                     else:
                         read_kwargs["sep"] = sep
                     df = pd.read_csv(path, encoding=encoding, **read_kwargs)
+                    if df is not None and df.shape[1] == 1 and has_whitespace_headers:
+                        df = pd.read_csv(
+                            path,
+                            encoding=encoding,
+                            sep=r"\s+",
+                            engine="python",
+                        )
+                    if df is not None and df.shape[1] == 1 and has_whitespace_headers:
+                        df = pd.read_fwf(path, encoding=encoding)
                     if not df.empty:
                         break
                 except Exception:
@@ -589,6 +608,11 @@ def load_report_raw(path: Path) -> pd.DataFrame:
                 sep=None,
                 engine="python",
             )
+        if df is not None and df.shape[1] == 1:
+            try:
+                df = pd.read_fwf(path, encoding="latin1")
+            except Exception:
+                pass
     else:
         df = pd.read_excel(path)
     df = normalize_columns(df)
