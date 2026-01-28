@@ -169,14 +169,31 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         return None
 
     rename_map = {}
+    if "VENDEDOR" in df.columns and "CODIGO" in df.columns:
+        order_signals = [
+            "DOCUMENTO",
+            "NUM_OS",
+            "CODIGO_PEDIDO",
+            "NUM_PE",
+            "NUM_FA",
+            "TOTAL_NOTA",
+            "TOTAL_BRUTO",
+            "CLIENTE",
+        ]
+        if any(signal in df.columns for signal in order_signals):
+            rename_map["CODIGO"] = (
+                "CODIGO_ORDEM" if "CODIGO_PEDIDO" in df.columns else "CODIGO_PEDIDO"
+            )
+
     code_column = pick_column(
         [
-            "CODIGO",
-            "COD",
+            "VENDEDOR",
             "CODIGO_VENDEDOR",
             "CODIGO_REPRESENTANTE",
             "ID_REPRESENTANTE",
             "ID_REP",
+            "CODIGO",
+            "COD",
         ]
     )
     if code_column and code_column != "CODIGO":
@@ -192,12 +209,20 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         rename_map[name_column] = "NOME_VENDEDOR"
 
     column_aliases = {
-        "QTDEITEM": ["ITENS", "ITENS_VENDIDOS", "QTDE_ITEM"],
+        "QTDEITEM": ["ITENS", "ITENS_VENDIDOS", "QTDE_ITEM", "QTDE_ITENS", "NUM_ITENS"],
         "TOTAL_PEDIDOS": ["PEDIDOS", "QTDE_PEDIDOS", "TOTALPEDIDOS"],
         "TOTAL_CLIENTES": ["CLIENTES", "TOTALCLIENTES"],
         "CLIENTES_ATIVOS": ["ATIVOS", "CLIENTES_ATIVOS", "ATIVOS_CARTEIRA"],
         "CLIENTES_NOVOS": ["CLIENTES_NOVOS", "NOVOS_CLIENTES"],
-        "VLR_LIQUIDO": ["VALOR_LIQUIDO", "VLR_LIQUIDO", "VENDAS_LIQUIDAS", "VALOR"],
+        "VLR_LIQUIDO": [
+            "VALOR_LIQUIDO",
+            "VLR_LIQUIDO",
+            "VENDAS_LIQUIDAS",
+            "VALOR",
+            "TOTAL_NOTA",
+            "TOTAL_BRUTO",
+            "TOTAL_PRODUTO",
+        ],
         "PRECO_MEDIO": ["PRECO_MEDIO", "PREÇO_MEDIO", "VALOR_MEDIO"],
         "MEDIA_PEDIDOS": ["MEDIA_PEDIDOS", "MEDIA_PEDIDO"],
         "QTDE_MEDIA": ["QTDE_MEDIA", "MEDIA_ITENS"],
@@ -238,6 +263,125 @@ def normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
             )
             df[column] = pd.to_numeric(df[column], errors="coerce")
     return df
+
+
+def aggregate_order_report(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    if "TOTAL_PEDIDOS" in df.columns or "TOTAL_CLIENTES" in df.columns:
+        return df
+
+    def pick_column(options: list[str]) -> str | None:
+        for option in options:
+            if option in df.columns:
+                return option
+        return None
+
+    order_column = pick_column(
+        ["CODIGO_PEDIDO", "CODIGO_ORDEM", "NUM_OS", "DOCUMENTO", "CODIGO"]
+    )
+    client_column = pick_column(
+        ["CLIENTE", "COD_CLIENTE", "CODIGO_CLIENTE", "ID_CLIENTE", "NOME_CLIENTE"]
+    )
+    active_column = pick_column(["CLIENTE_ATIVO", "STATUS_CLIENTE"])
+    cadastro_column = pick_column(["CADASTRO_CLIENTE", "DATA_CADASTRO_CLIENTE"])
+    qtde_column = pick_column(["QTDEITEM"])
+
+    if "VLR_LIQUIDO" not in df.columns or "CODIGO" not in df.columns:
+        return df
+
+    work_df = df.copy()
+    def column_series(column_name: str) -> pd.Series:
+        values = work_df[column_name]
+        if isinstance(values, pd.DataFrame):
+            return values.iloc[:, 0]
+        return values
+    if "NOME_VENDEDOR" not in work_df.columns:
+        work_df["NOME_VENDEDOR"] = "-"
+    if order_column:
+        work_df["_order_id"] = column_series(order_column)
+    else:
+        work_df["_order_id"] = work_df.index
+
+    if client_column:
+        work_df["_client_id"] = column_series(client_column)
+    else:
+        work_df["_client_id"] = None
+
+    if active_column:
+        work_df["_active_client"] = work_df[active_column].apply(
+            lambda value: str(value).strip().upper()
+            in {"SIM", "S", "ATIVO", "ATIVA", "1", "TRUE", "VERDADEIRO"}
+        )
+    else:
+        work_df["_active_client"] = False
+
+    if cadastro_column:
+        cadastro_dates = pd.to_datetime(
+            column_series(cadastro_column), errors="coerce", dayfirst=True
+        )
+        current_year = datetime.now().year
+        work_df["_is_new_client"] = cadastro_dates.dt.year == current_year
+    else:
+        work_df["_is_new_client"] = False
+
+    group_fields = ["CODIGO", "NOME_VENDEDOR"]
+    aggregations = {"VLR_LIQUIDO": "sum"}
+    if qtde_column:
+        aggregations["QTDEITEM"] = "sum"
+
+    grouped = work_df.groupby(group_fields, dropna=False)
+    aggregated = grouped.agg(aggregations).reset_index()
+
+    aggregated["TOTAL_PEDIDOS"] = grouped["_order_id"].nunique().values
+
+    if client_column:
+        aggregated["TOTAL_CLIENTES"] = grouped["_client_id"].nunique().values
+        aggregated["CLIENTES_ATIVOS"] = (
+            grouped.apply(
+                lambda group: group.loc[group["_active_client"], "_client_id"]
+                .dropna()
+                .nunique()
+            )
+            .values
+        )
+        aggregated["CLIENTES_NOVOS"] = (
+            grouped.apply(
+                lambda group: group.loc[group["_is_new_client"], "_client_id"]
+                .dropna()
+                .nunique()
+            )
+            .values
+        )
+    else:
+        aggregated["TOTAL_CLIENTES"] = 0
+        aggregated["CLIENTES_ATIVOS"] = 0
+        aggregated["CLIENTES_NOVOS"] = 0
+
+    if "QTDEITEM" not in aggregated.columns:
+        aggregated["QTDEITEM"] = 0
+    else:
+        aggregated["QTDEITEM"] = aggregated["QTDEITEM"].fillna(0)
+    aggregated["TOTAL_PEDIDOS"] = aggregated["TOTAL_PEDIDOS"].fillna(0)
+
+    aggregated["QTDE_MEDIA"] = aggregated.apply(
+        lambda row: row["QTDEITEM"] / row["TOTAL_PEDIDOS"]
+        if row["TOTAL_PEDIDOS"] > 0
+        else 0,
+        axis=1,
+    )
+    aggregated["PRECO_MEDIO"] = aggregated.apply(
+        lambda row: row["VLR_LIQUIDO"] / row["QTDEITEM"] if row["QTDEITEM"] > 0 else 0,
+        axis=1,
+    )
+    aggregated["MEDIA_PEDIDOS"] = aggregated.apply(
+        lambda row: row["VLR_LIQUIDO"] / row["TOTAL_PEDIDOS"]
+        if row["TOTAL_PEDIDOS"] > 0
+        else 0,
+        axis=1,
+    )
+
+    return normalize_numeric_columns(aggregated)
 
 
 def get_current_config(store: dict) -> dict:
@@ -316,6 +460,7 @@ def load_report(path: Path) -> pd.DataFrame:
         df = pd.read_excel(path)
     df = normalize_columns(df)
     df = normalize_numeric_columns(df)
+    df = aggregate_order_report(df)
     return df
 
 
