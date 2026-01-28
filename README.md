@@ -25,6 +25,15 @@ Sistema local que lê automaticamente o arquivo mais recente na pasta `C:\META R
   python app.py
   ```
 
+## Novo relatório de Orçamento
+
+- O arquivo pode vir linha a linha (não consolidado). O sistema agrupa por representante e calcula automaticamente:
+  - total de orçamentos (pedidos)
+  - clientes únicos, ativos e novos
+  - valor total e itens
+  - ticket médio e média de pedidos por cliente
+- Use os filtros de emissão, status do orçamento e cliente ativo/inativo no topo do dashboard para refinar o consolidado.
+
 ## Como cadastrar metas por representante
 
 1. Abra `http://localhost:9000/admin/metas`.
