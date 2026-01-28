@@ -178,7 +178,7 @@ def parse_ptbr_date(raw_value: str | None) -> datetime | None:
 
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = [column.strip().upper() for column in df.columns]
+    df.columns = [str(column).strip().upper() for column in df.columns]
     original_columns = set(df.columns)
 
     def pick_column(options: list[str]) -> str | None:
@@ -541,23 +541,53 @@ def build_metas_map(store: dict, ano: int, colecao: str) -> dict:
 
 def load_report_raw(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
-        csv_kwargs = {"sep": None, "engine": "python"}
+        csv_kwargs = {"engine": "python"}
         encodings_to_try = ("utf-8-sig", "utf-8", "utf-16", "cp1252", "latin1")
         df = None
 
         with path.open("rb") as file_handle:
             sample = file_handle.read(4096)
+
+        def detect_separator(sample_bytes: bytes) -> str | None:
+            if b"\t" in sample_bytes:
+                return "\t"
+            if b";" in sample_bytes:
+                return ";"
+            if b"," in sample_bytes:
+                return ","
+            return None
+
+        separator = detect_separator(sample)
+        separators_to_try = [separator, None] if separator else [None, "\t", ";", ","]
+
         for encoding in encodings_to_try:
             try:
                 sample.decode(encoding)
-                df = pd.read_csv(path, encoding=encoding, **csv_kwargs)
-                break
             except UnicodeDecodeError:
                 continue
 
+            for sep in separators_to_try:
+                try:
+                    read_kwargs = {**csv_kwargs}
+                    if sep is None:
+                        read_kwargs["sep"] = None
+                    else:
+                        read_kwargs["sep"] = sep
+                    df = pd.read_csv(path, encoding=encoding, **read_kwargs)
+                    if not df.empty:
+                        break
+                except Exception:
+                    continue
+            if df is not None:
+                break
+
         if df is None:
             df = pd.read_csv(
-                path, encoding="latin1", encoding_errors="replace", **csv_kwargs
+                path,
+                encoding="latin1",
+                encoding_errors="replace",
+                sep=None,
+                engine="python",
             )
     else:
         df = pd.read_excel(path)
