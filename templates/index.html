@@ -22,7 +22,9 @@
     <nav class="topnav">
       <a class="active" href="/">Dashboard</a>
       <a href="/admin">Admin</a>
-      <a href="/admin/metas">Metas</a>
+      <a href="/admin/metas">Metas por Representante</a>
+      <a href="/admin/config">Coleção Atual</a>
+      <a href="/admin/historico">Histórico</a>
     </nav>
   </header>
 
@@ -51,7 +53,7 @@
         <p class="meta-detail">{{ summary.meta_status_detail }}</p>
         {% else %}
         <p class="hero-value">—</p>
-        <p class="caption">Nenhuma meta cadastrada para {{ metas_periodo }}.</p>
+        <p class="caption">Nenhuma meta cadastrada para {{ config.ano_atual }} · {{ config.colecao_atual }}.</p>
         {% endif %}
         {% else %}
         <p class="caption">Carregue um arquivo para exibir o progresso da meta.</p>
@@ -117,7 +119,7 @@
       <div class="card">
         <h3>Representantes com meta</h3>
         <p class="value">{{ summary.vendedores_com_meta }}/{{ summary.total_vendedores }}</p>
-        <p class="caption">Período {{ metas_periodo }}</p>
+        <p class="caption">Coleção {{ config.ano_atual }} · {{ config.colecao_atual }}</p>
       </div>
       <div class="card">
         <h3>Acima de 100% da meta</h3>
@@ -191,7 +193,9 @@
         <h3>Alertas prioritários</h3>
         <ul class="alert-list">
           <li>
-            <span>Vendedores abaixo de 50% da meta</span>
+            <button class="link-button" type="button" data-filter="abaixo">
+              Abaixo da meta
+            </button>
             <strong class="text-danger">{{ summary.vendedores_abaixo_meta }}</strong>
           </li>
           <li>
@@ -260,17 +264,16 @@
               <th>Preço médio</th>
               <th>Média pedidos</th>
               <th>Clientes novos</th>
-              <th>Meta (R$)</th>
-              <th>Atingimento (%)</th>
+              <th>Meta atual</th>
+              <th>% Atingimento</th>
               <th>Gap (R$)</th>
-              <th>Meta pedidos</th>
-              <th>Atingimento pedidos (%)</th>
               <th>Status meta</th>
+              <th>Detalhes</th>
             </tr>
           </thead>
           <tbody>
             {% for vendedor in vendedores %}
-            <tr class="row-{{ vendedor.meta_status_class }}" data-meta-status="{{ 'pendente' if vendedor.percentual_meta is none and vendedor.meta_pedidos <= 0 else 'ok' }}">
+            <tr class="row-{{ vendedor.meta_status_class }}" data-meta-status="{% if vendedor.percentual_meta is none %}pendente{% elif vendedor.percentual_meta < 1 %}abaixo{% else %}ok{% endif %}">
               <td>{{ vendedor.codigo }}</td>
               <td>{{ vendedor.nome }}</td>
               <td>{{ vendedor.qtde_item }}</td>
@@ -286,7 +289,7 @@
                 {% if vendedor.valor_meta > 0 %}
                 R$ {{ "{:,.2f}".format(vendedor.valor_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                 {% else %}
-                —
+                Sem meta cadastrada
                 {% endif %}
               </td>
               <td>
@@ -304,25 +307,14 @@
                 {% endif %}
               </td>
               <td>
-                {% if vendedor.meta_pedidos > 0 %}
-                {{ vendedor.meta_pedidos }}
-                {% else %}
-                —
-                {% endif %}
-              </td>
-              <td>
-                {% if vendedor.percentual_pedidos is not none %}
-                {{ "{:.1f}%".format(vendedor.percentual_pedidos * 100) }}
-                {% else %}
-                —
-                {% endif %}
-              </td>
-              <td>
-                {% if vendedor.percentual_meta is not none or vendedor.meta_pedidos > 0 %}
+                {% if vendedor.percentual_meta is not none %}
                 <span class="status-pill status-good">Meta cadastrada</span>
                 {% else %}
                 <span class="status-pill status-neutral">Meta pendente</span>
                 {% endif %}
+              </td>
+              <td>
+                <a class="link-button" href="/representante/{{ vendedor.identificador }}">Ver detalhes</a>
               </td>
             </tr>
             {% endfor %}
@@ -414,13 +406,14 @@
 
     syncRankingSelects('valor');
 
-    const filterButtons = document.querySelectorAll('[data-filter="pendente"]');
+    const filterButtons = document.querySelectorAll('[data-filter]');
     filterButtons.forEach(button => {
       button.addEventListener('click', () => {
         const isActive = button.classList.toggle('active');
         document.querySelectorAll('.table-wrapper tbody tr').forEach(row => {
-          const isPending = row.dataset.metaStatus === 'pendente';
-          row.style.display = !isActive || isPending ? '' : 'none';
+          const filter = button.dataset.filter;
+          const matches = row.dataset.metaStatus === filter;
+          row.style.display = !isActive || matches ? '' : 'none';
         });
       });
     });

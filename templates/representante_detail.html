@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Representantes - Detalhe do Representante</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">MR</span>
+      <div>
+        <strong>Meta Representantes</strong>
+        <span>Detalhe do representante</span>
+      </div>
+    </div>
+    <nav class="topnav">
+      <a href="/">Dashboard</a>
+      <a href="/admin">Admin</a>
+      <a href="/admin/metas">Metas por Representante</a>
+      <a href="/admin/config">Coleção Atual</a>
+      <a href="/admin/historico">Histórico</a>
+    </nav>
+  </header>
+
+  {% if not data_loaded %}
+  <section class="hero">
+    <div class="hero-content">
+      <div>
+        <p class="eyebrow">Detalhe</p>
+        <h1>Sem relatório carregado</h1>
+        <p class="subtitle">Carregue um arquivo de vendas para visualizar os detalhes do representante.</p>
+      </div>
+    </div>
+  </section>
+  {% else %}
+  <section class="hero">
+    <div class="hero-content">
+      <div>
+        <p class="eyebrow">Representante</p>
+        <h1>{{ representante.nome if representante else 'Representante' }}</h1>
+        <p class="subtitle">ID: {{ representante.id if representante else '-' }} · Status: {{ representante.status if representante else '-' }}</p>
+      </div>
+      <div class="hero-card">
+        <h3>Período atual</h3>
+        <p class="hero-value">{{ config.ano_atual }} · {{ config.colecao_atual }}</p>
+        {% if meta_atual %}
+        <p class="caption">Meta atual: R$ {{ "{:,.2f}".format(meta_atual.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+        {% else %}
+        <p class="caption">Sem meta cadastrada</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <main class="dashboard">
+    <section class="grid kpis">
+      <div class="card">
+        <h3>Vendas atuais</h3>
+        <p class="value">{% if vendas_data %}R$ {{ "{:,.2f}".format(vendas_data.get('VLR_LIQUIDO', 0)).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% else %}—{% endif %}</p>
+      </div>
+      <div class="card">
+        <h3>Meta atual</h3>
+        <p class="value">{% if meta_atual %}R$ {{ "{:,.2f}".format(meta_atual.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% else %}—{% endif %}</p>
+      </div>
+      <div class="card">
+        <h3>% Atingimento</h3>
+        <p class="value">
+          {% if meta_atual and vendas_data %}
+          {{ "{:.1f}%".format((vendas_data.get('VLR_LIQUIDO', 0) / meta_atual.meta) * 100 if meta_atual.meta else 0) }}
+          {% else %}
+          —
+          {% endif %}
+        </p>
+      </div>
+    </section>
+
+    <section class="card admin-card admin-table">
+      <div class="section-header">
+        <div>
+          <h2>Últimas 3 coleções do ano anterior</h2>
+          <p class="caption">Comparativo histórico com as metas anteriores cadastradas.</p>
+        </div>
+      </div>
+      {% if not historico %}
+      <div class="alert info">Nenhum histórico cadastrado para este representante.</div>
+      {% else %}
+      <div class="table-wrapper meta-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Ano</th>
+              <th>Coleção</th>
+              <th>Meta</th>
+              <th>Realizado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in historico %}
+            <tr>
+              <td>{{ item.ano }}</td>
+              <td>{{ item.colecao }}</td>
+              <td>R$ {{ "{:,.2f}".format(item.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td>
+                {% if item.realizado is not none %}
+                R$ {{ "{:,.2f}".format(item.realizado).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                {% else %}
+                —
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+  </main>
+  {% endif %}
+
+  <footer>
+    <p>Comparativo entre meta atual e histórico de coleções anteriores.</p>
+  </footer>
+</body>
+</html>
