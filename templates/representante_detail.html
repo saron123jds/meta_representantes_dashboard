@@ -49,7 +49,7 @@
         <h3>Período atual</h3>
         <p class="hero-value">{{ config.ano_atual }} · {{ config.colecao_atual }}</p>
         {% if meta_atual %}
-        <p class="caption">Meta atual: R$ {{ "{:,.2f}".format(meta_atual.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</p>
+        <p class="caption">Meta atual: {{ "{:,.0f}".format(meta_atual.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }} peças</p>
         {% else %}
         <p class="caption">Sem meta cadastrada</p>
         {% endif %}
@@ -60,18 +60,18 @@
   <main class="dashboard">
     <section class="grid kpis">
       <div class="card">
-        <h3>Vendas atuais</h3>
-        <p class="value">{% if vendas_data %}R$ {{ "{:,.2f}".format(vendas_data.get('VLR_LIQUIDO', 0)).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% else %}—{% endif %}</p>
+        <h3>Peças atuais</h3>
+        <p class="value">{% if vendas_data %}{{ "{:,.0f}".format(vendas_data.get('QTDEITEM', 0)).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% else %}—{% endif %}</p>
       </div>
       <div class="card">
-        <h3>Meta atual</h3>
-        <p class="value">{% if meta_atual %}R$ {{ "{:,.2f}".format(meta_atual.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% else %}—{% endif %}</p>
+        <h3>Meta atual (peças)</h3>
+        <p class="value">{% if meta_atual %}{{ "{:,.0f}".format(meta_atual.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% else %}—{% endif %}</p>
       </div>
       <div class="card">
         <h3>% Atingimento</h3>
         <p class="value">
           {% if meta_atual and vendas_data %}
-          {{ "{:.1f}%".format((vendas_data.get('VLR_LIQUIDO', 0) / meta_atual.meta) * 100 if meta_atual.meta else 0) }}
+          {{ "{:.1f}%".format((vendas_data.get('QTDEITEM', 0) / meta_atual.meta) * 100 if meta_atual.meta else 0) }}
           {% else %}
           —
           {% endif %}
@@ -95,8 +95,8 @@
             <tr>
               <th>Ano</th>
               <th>Coleção</th>
-              <th>Meta</th>
-              <th>Realizado</th>
+              <th>Meta (peças)</th>
+              <th>Realizado (peças)</th>
             </tr>
           </thead>
           <tbody>
@@ -104,10 +104,10 @@
             <tr>
               <td>{{ item.ano }}</td>
               <td>{{ item.colecao }}</td>
-              <td>R$ {{ "{:,.2f}".format(item.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td>{{ "{:,.0f}".format(item.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
               <td>
                 {% if item.realizado is not none %}
-                R$ {{ "{:,.2f}".format(item.realizado).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                {{ "{:,.0f}".format(item.realizado).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                 {% else %}
                 —
                 {% endif %}

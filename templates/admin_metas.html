@@ -53,7 +53,7 @@
     <section class="grid admin-grid">
       <div class="card admin-card">
         <h2>{{ 'Editar meta' if edit_meta else 'Cadastrar meta individual' }}</h2>
-        <p class="caption">Selecione o representante e informe a meta numérica (R$ ou peças).</p>
+        <p class="caption">Selecione o representante e informe a meta em quantidade de peças.</p>
         {% if message %}
         <div class="alert {{ message_type }}">{{ message }}</div>
         {% endif %}
@@ -98,8 +98,8 @@
             </label>
           </div>
           <label class="form-field" for="meta">
-            <span>Meta (R$ ou peças)</span>
-            <input id="meta" name="meta" type="text" placeholder="Ex: 100.000,00" value="{% if edit_meta %}{{ "{:,.2f}".format(edit_meta.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}" required>
+            <span>Meta (peças)</span>
+            <input id="meta" name="meta" type="text" placeholder="Ex: 1.000" value="{% if edit_meta %}{{ "{:,.0f}".format(edit_meta.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}" required>
           </label>
           <div class="form-actions">
             <button class="btn-primary" type="submit">Salvar</button>
@@ -137,7 +137,7 @@
               <th>Status</th>
               <th>Ano</th>
               <th>Coleção</th>
-              <th>Meta</th>
+              <th>Meta (peças)</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -156,7 +156,7 @@
           </td>
               <td>{{ meta.ano }}</td>
               <td>{{ meta.colecao }}</td>
-              <td>R$ {{ "{:,.2f}".format(meta.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td>{{ "{:,.0f}".format(meta.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
               <td class="table-actions">
                 <a class="btn-ghost" href="/admin/metas?edit_id={{ meta.id }}">Editar</a>
                 <form method="post" class="inline-form" onsubmit="return confirm('Deseja remover esta meta?');">

@@ -37,7 +37,11 @@
         {% if data_loaded %}
         <p class="meta">Arquivo mais recente: <strong>{{ latest_file }}</strong> · Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
         {% else %}
+        {% if report_error %}
+        <p class="meta warning">{{ report_error }}</p>
+        {% else %}
         <p class="meta warning">Nenhum arquivo encontrado. Coloque um arquivo {{ supported_extensions }} na pasta acima.</p>
+        {% endif %}
         {% endif %}
       </div>
       <div class="hero-card">
@@ -89,7 +93,7 @@
           </div>
           <div class="metric">
             <span>Gap total (metas cadastradas)</span>
-            <strong>R$ {{ "{:,.2f}".format(summary.gap_total).replace(',', 'X').replace('.', ',').replace('X', '.') }}</strong>
+            <strong>{{ "{:,.0f}".format(summary.gap_total).replace(',', 'X').replace('.', ',').replace('X', '.') }} peças</strong>
           </div>
         </div>
         <div class="progress">
@@ -223,7 +227,7 @@
           <select id="rankingSelect">
             <option value="valor">Valor líquido</option>
             <option value="atingimento">% Atingimento</option>
-            <option value="gap">Gap</option>
+            <option value="gap">Gap (peças)</option>
           </select>
         </div>
         <ol class="ranking" id="rankingTop"></ol>
@@ -234,7 +238,7 @@
           <select id="rankingSelectBottom">
             <option value="valor">Valor líquido</option>
             <option value="atingimento">% Atingimento</option>
-            <option value="gap">Gap</option>
+            <option value="gap">Gap (peças)</option>
           </select>
         </div>
         <ol class="ranking worst" id="rankingBottom"></ol>
@@ -264,9 +268,9 @@
               <th>Preço médio</th>
               <th>Média pedidos</th>
               <th>Clientes novos</th>
-              <th>Meta atual</th>
+              <th>Meta atual (peças)</th>
               <th>% Atingimento</th>
-              <th>Gap (R$)</th>
+              <th>Gap (peças)</th>
               <th>Status meta</th>
               <th>Detalhes</th>
             </tr>
@@ -287,7 +291,7 @@
               <td>{{ vendedor.clientes_novos }}</td>
               <td>
                 {% if vendedor.valor_meta > 0 %}
-                R$ {{ "{:,.2f}".format(vendedor.valor_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                {{ "{:,.0f}".format(vendedor.valor_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                 {% else %}
                 Sem meta cadastrada
                 {% endif %}
@@ -301,7 +305,7 @@
               </td>
               <td>
                 {% if vendedor.gap_meta is not none %}
-                R$ {{ "{:,.2f}".format(vendedor.gap_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+                {{ "{:,.0f}".format(vendedor.gap_meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}
                 {% else %}
                 —
                 {% endif %}
@@ -361,6 +365,7 @@
 
     const formatterCurrency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
     const formatterPercent = new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 1 });
+    const formatterPieces = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 
     const rankingSelect = document.getElementById('rankingSelect');
     const rankingSelectBottom = document.getElementById('rankingSelectBottom');
@@ -370,6 +375,9 @@
     const formatRankingValue = (metric, value) => {
       if (metric === 'atingimento') {
         return formatterPercent.format(value);
+      }
+      if (metric === 'gap') {
+        return `${formatterPieces.format(value || 0)} peças`;
       }
       return formatterCurrency.format(value || 0);
     };
