@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Representantes - Configuração de Coleção Atual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">MR</span>
+      <div>
+        <strong>Meta Representantes</strong>
+        <span>Configurações</span>
+      </div>
+    </div>
+    <nav class="topnav">
+      <a href="/">Dashboard</a>
+      <a href="/admin">Admin</a>
+      <a href="/admin/metas">Metas por Representante</a>
+      <a class="active" href="/admin/config">Coleção Atual</a>
+      <a href="/admin/historico">Histórico</a>
+    </nav>
+  </header>
+
+  <section class="hero hero-admin">
+    <div class="hero-content">
+      <div>
+        <p class="eyebrow">Administração</p>
+        <h1>Configuração da coleção atual</h1>
+        <p class="subtitle">Defina o ano e a coleção atual para usar como padrão no cadastro de metas e no dashboard.</p>
+      </div>
+      <div class="hero-card">
+        <h3>Configuração ativa</h3>
+        <p class="hero-value">{{ config.ano_atual }} · {{ config.colecao_atual }}</p>
+        {% if latest_file %}
+        <p class="caption">Relatório ativo: {{ latest_file }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <main class="dashboard admin-page">
+    <section class="grid admin-grid">
+      <div class="card admin-card">
+        <h2>Atualizar configuração</h2>
+        <p class="caption">Essas informações serão usadas como padrão no cadastro de metas.</p>
+        {% if message %}
+        <div class="alert {{ message_type }}">{{ message }}</div>
+        {% endif %}
+        <form class="stack-form" method="post">
+          <div class="form-row">
+            <label class="form-field" for="ano_atual">
+              <span>Ano atual</span>
+              <input id="ano_atual" name="ano_atual" type="number" min="2000" max="2100" value="{{ config.ano_atual }}" required>
+            </label>
+            <label class="form-field" for="colecao_atual">
+              <span>Coleção atual</span>
+              <select id="colecao_atual" name="colecao_atual" required>
+                {% for colecao in collection_options %}
+                <option value="{{ colecao }}" {% if config.colecao_atual == colecao %}selected{% endif %}>{{ colecao }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+
+          <div class="divider"></div>
+
+          <h3 class="section-title">Configuração opcional por marca</h3>
+          <p class="caption">Preencha apenas se o sistema estiver separado por marca.</p>
+          <div class="form-row">
+            <label class="form-field" for="ano_atual_dazul">
+              <span>Ano atual Dazul</span>
+              <input id="ano_atual_dazul" name="ano_atual_dazul" type="number" min="2000" max="2100" value="{{ config.ano_atual_dazul or '' }}">
+            </label>
+            <label class="form-field" for="colecao_atual_dazul">
+              <span>Coleção atual Dazul</span>
+              <select id="colecao_atual_dazul" name="colecao_atual_dazul">
+                <option value="">—</option>
+                {% for colecao in collection_options %}
+                <option value="{{ colecao }}" {% if config.colecao_atual_dazul == colecao %}selected{% endif %}>{{ colecao }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="form-field" for="ano_atual_saron">
+              <span>Ano atual Saron</span>
+              <input id="ano_atual_saron" name="ano_atual_saron" type="number" min="2000" max="2100" value="{{ config.ano_atual_saron or '' }}">
+            </label>
+            <label class="form-field" for="colecao_atual_saron">
+              <span>Coleção atual Saron</span>
+              <select id="colecao_atual_saron" name="colecao_atual_saron">
+                <option value="">—</option>
+                {% for colecao in collection_options %}
+                <option value="{{ colecao }}" {% if config.colecao_atual_saron == colecao %}selected{% endif %}>{{ colecao }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" type="submit">Salvar configurações</button>
+          </div>
+        </form>
+      </div>
+      <div class="card admin-info">
+        <h3>Impacto no dashboard</h3>
+        <ul class="info-list">
+          <li>Define o período padrão das metas atuais.</li>
+          <li>Atualiza automaticamente o dashboard e ranking.</li>
+          <li>Pode ser ajustado a cada nova coleção.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>As configurações ficam salvas localmente no arquivo de dados do sistema.</p>
+  </footer>
+</body>
+</html>

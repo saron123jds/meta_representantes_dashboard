@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meta Representantes - Metas Individuais</title>
+  <title>Meta Representantes - Metas por Representante</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,7 +21,9 @@
     <nav class="topnav">
       <a href="/">Dashboard</a>
       <a href="/admin">Admin</a>
-      <a class="active" href="/admin/metas">Metas</a>
+      <a class="active" href="/admin/metas">Metas por Representante</a>
+      <a href="/admin/config">Coleção Atual</a>
+      <a href="/admin/historico">Histórico</a>
     </nav>
   </header>
 
@@ -29,21 +31,19 @@
     <div class="hero-content">
       <div>
         <p class="eyebrow">Administração</p>
-        <h1>Metas individuais por representante</h1>
-        <p class="subtitle">Cadastre metas de valor e pedidos por período. Os dados são salvos localmente em <strong>/data/metas.json</strong>.</p>
+        <h1>Metas por representante</h1>
+        <p class="subtitle">Cadastre metas individuais para a coleção atual. Os dados ficam salvos localmente em <strong>/data/metas.json</strong>.</p>
       </div>
       <div class="hero-card">
-        <h3>Relatório ativo</h3>
+        <h3>Coleção atual</h3>
+        <p class="hero-value">{{ config.ano_atual }} · {{ config.colecao_atual }}</p>
         {% if latest_file %}
-        <p class="hero-value">{{ latest_file }}</p>
+        <p class="caption">Relatório ativo: {{ latest_file }}</p>
+        {% else %}
+        <p class="caption">Nenhum relatório encontrado.</p>
+        {% endif %}
         {% if updated_at %}
         <p class="caption">Atualizado em {{ updated_at.strftime('%d/%m/%Y %H:%M') }}</p>
-        {% endif %}
-        {% else %}
-        <p class="caption">Nenhum arquivo carregado ainda.</p>
-        {% endif %}
-        {% if metas_updated_at %}
-        <p class="caption">Última atualização das metas: {{ metas_updated_at.replace('T', ' ') }}</p>
         {% endif %}
       </div>
     </div>
@@ -52,24 +52,69 @@
   <main class="dashboard admin-page">
     <section class="grid admin-grid">
       <div class="card admin-card">
-        <h2>Selecionar período</h2>
-        <p class="caption">Escolha o mês/ano das metas que deseja cadastrar ou revisar.</p>
-        <form class="period-form" method="get">
-          <label class="form-field" for="periodo">
-            <span>Período (YYYY-MM)</span>
-            <input id="periodo" name="periodo" type="month" value="{{ periodo }}" required>
+        <h2>{{ 'Editar meta' if edit_meta else 'Cadastrar meta individual' }}</h2>
+        <p class="caption">Selecione o representante e informe a meta numérica (R$ ou peças).</p>
+        {% if message %}
+        <div class="alert {{ message_type }}">{{ message }}</div>
+        {% endif %}
+        <form class="stack-form" method="post">
+          {% if edit_meta %}
+          <input type="hidden" name="meta_id" value="{{ edit_meta.id }}">
+          <input type="hidden" name="representante_id" value="{{ edit_meta.representante_id }}">
+          {% endif %}
+          <label class="form-field" for="representante">
+            <span>Representante (busca)</span>
+            <input id="representante" name="representante" list="representantes_list" placeholder="Busque por nome ou código" value="{% if edit_meta %}{{ edit_meta.representante_id }} - {{ (rep_options | selectattr('id', 'equalto', edit_meta.representante_id) | map(attribute='nome') | first) or '' }}{% endif %}">
+            <datalist id="representantes_list">
+              {% for rep in rep_options %}
+              <option value="{{ rep.value }}"></option>
+              {% endfor %}
+              <option value="Cadastrar novo"></option>
+            </datalist>
           </label>
-          <button class="btn-primary" type="submit">Carregar</button>
+          <label class="form-field" for="novo_representante">
+            <span>Cadastrar novo (nome do representante)</span>
+            <input id="novo_representante" name="novo_representante" type="text" placeholder="Digite o nome se não estiver na lista">
+          </label>
+          <label class="form-field" for="status_representante">
+            <span>Status do representante</span>
+            <select id="status_representante" name="status_representante">
+              <option value="ATIVO">ATIVO</option>
+              <option value="NOVO" {% if edit_meta and rep_options | selectattr('id', 'equalto', edit_meta.representante_id) | map(attribute='status') | first == 'NOVO' %}selected{% endif %}>NOVO</option>
+            </select>
+          </label>
+          <div class="form-row">
+            <label class="form-field" for="ano">
+              <span>Ano atual</span>
+              <input id="ano" name="ano" type="number" min="2000" max="2100" value="{{ edit_meta.ano if edit_meta else config.ano_atual }}" required>
+            </label>
+            <label class="form-field" for="colecao">
+              <span>Coleção atual</span>
+              <select id="colecao" name="colecao" required>
+                <option value="PRIMAVERA" {% if (edit_meta and edit_meta.colecao == 'PRIMAVERA') or (not edit_meta and config.colecao_atual == 'PRIMAVERA') %}selected{% endif %}>PRIMAVERA</option>
+                <option value="INVERNO" {% if (edit_meta and edit_meta.colecao == 'INVERNO') or (not edit_meta and config.colecao_atual == 'INVERNO') %}selected{% endif %}>INVERNO</option>
+                <option value="VERAO" {% if (edit_meta and edit_meta.colecao == 'VERAO') or (not edit_meta and config.colecao_atual == 'VERAO') %}selected{% endif %}>VERAO</option>
+              </select>
+            </label>
+          </div>
+          <label class="form-field" for="meta">
+            <span>Meta (R$ ou peças)</span>
+            <input id="meta" name="meta" type="text" placeholder="Ex: 100.000,00" value="{% if edit_meta %}{{ "{:,.2f}".format(edit_meta.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}" required>
+          </label>
+          <div class="form-actions">
+            <button class="btn-primary" type="submit">Salvar</button>
+            {% if edit_meta %}
+            <a class="btn-ghost" href="/admin/metas">Cancelar</a>
+            {% endif %}
+          </div>
         </form>
       </div>
       <div class="card admin-info">
-        <h3>Resumo do período</h3>
-        <p class="caption">Período selecionado:</p>
-        <p class="path-pill">{{ periodo }}</p>
+        <h3>Regras rápidas</h3>
         <ul class="info-list">
-          <li>Metas ficam salvas por período no arquivo local.</li>
-          <li>Se um representante não possuir meta, será marcado como pendente.</li>
-          <li>Atualize o CSV para refletir novos representantes.</li>
+          <li>Representantes novos podem ser cadastrados mesmo sem aparecer no Excel.</li>
+          <li>Dados ficam salvos localmente e não se perdem ao atualizar o Excel.</li>
+          <li>Use a tela “Coleção Atual” para ajustar os padrões do período.</li>
         </ul>
       </div>
     </section>
@@ -77,74 +122,54 @@
     <section class="card admin-card admin-table">
       <div class="section-header">
         <div>
-          <h2>Metas por representante</h2>
-          <p class="caption">Valores vazios deixam a meta como pendente.</p>
-        </div>
-        <div class="action-row">
-          <div class="inline-field">
-            <label for="metaPadrao">Aplicar meta padrão (R$)</label>
-            <input id="metaPadrao" type="text" placeholder="Ex: 100.000,00">
-          </div>
-          <button class="btn-secondary" type="button" id="applyDefault">Aplicar</button>
+          <h2>Metas cadastradas ({{ config.ano_atual }} · {{ config.colecao_atual }})</h2>
+          <p class="caption">Ações rápidas para editar ou remover metas.</p>
         </div>
       </div>
-
-      {% if not representantes %}
-      <div class="alert info">Nenhum representante encontrado. Atualize o CSV na página Admin.</div>
+      {% if not metas_atuais %}
+      <div class="alert info">Nenhuma meta cadastrada para a coleção atual.</div>
       {% else %}
-      <form method="post" class="meta-form">
-        <input type="hidden" name="periodo" value="{{ periodo }}">
-        <input type="hidden" name="rep_total" value="{{ representantes|length }}">
-        <div class="table-wrapper meta-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Representante</th>
-                <th>Meta (R$)</th>
-                <th>Meta pedidos</th>
-                <th>Status</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for rep in representantes %}
-              <tr>
-                <td>{{ rep.codigo }}</td>
-                <td>
-                  <div class="rep-info">
-                    <strong>{{ rep.nome }}</strong>
-                    <span class="caption">ID: {{ rep.identificador }}</span>
-                  </div>
-                </td>
-                <td>
-                  <input type="hidden" name="rep_id_{{ loop.index0 }}" value="{{ rep.identificador }}">
-                  <input type="hidden" name="rep_nome_{{ loop.index0 }}" value="{{ rep.nome }}">
-                  <input class="currency-input" name="meta_valor_{{ loop.index0 }}" type="text" value="{% if rep.meta_valor %}{{ "{:,.2f}".format(rep.meta_valor).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}" placeholder="R$ 0,00">
-                </td>
-                <td>
-                  <input name="meta_pedidos_{{ loop.index0 }}" type="number" min="0" step="1" value="{{ rep.meta_pedidos or '' }}" placeholder="0">
-                </td>
-                <td>
-                  {% if rep.status == 'Cadastrada' %}
-                  <span class="status-pill status-good">Cadastrada</span>
-                  {% else %}
-                  <span class="status-pill status-neutral">Pendente</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <button class="btn-ghost" type="submit" name="salvar_id" value="{{ loop.index0 }}">Salvar</button>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="form-actions">
-          <button class="btn-primary" type="submit">Salvar tudo</button>
-          <button class="btn-outline" type="submit" name="action" value="zerar" data-confirm="true">Zerar metas do período</button>
-        </div>
-      </form>
+      <div class="table-wrapper meta-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Representante</th>
+              <th>Status</th>
+              <th>Ano</th>
+              <th>Coleção</th>
+              <th>Meta</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for meta in metas_atuais %}
+            <tr>
+              <td>
+                <div class="rep-info">
+              <strong>{{ (rep_options | selectattr('id', 'equalto', meta.representante_id) | map(attribute='nome') | first) or meta.representante_id }}</strong>
+              <span class="caption">ID: {{ meta.representante_id }}</span>
+            </div>
+          </td>
+          <td>
+            {% set rep_status = rep_options | selectattr('id', 'equalto', meta.representante_id) | map(attribute='status') | first %}
+            <span class="status-pill {{ 'status-good' if rep_status == 'ATIVO' else 'status-warning' }}">{{ rep_status or 'NOVO' }}</span>
+          </td>
+              <td>{{ meta.ano }}</td>
+              <td>{{ meta.colecao }}</td>
+              <td>R$ {{ "{:,.2f}".format(meta.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+              <td class="table-actions">
+                <a class="btn-ghost" href="/admin/metas?edit_id={{ meta.id }}">Editar</a>
+                <form method="post" class="inline-form" onsubmit="return confirm('Deseja remover esta meta?');">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="meta_id" value="{{ meta.id }}">
+                  <button class="btn-outline" type="submit">Excluir</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% endif %}
     </section>
   </main>
@@ -153,40 +178,18 @@
     <p>Metas individuais ficam armazenadas localmente e são usadas no painel executivo.</p>
   </footer>
 
-  {% if message %}
-  <div class="toast {{ message_type }}" id="toastMessage">{{ message }}</div>
-  {% endif %}
-
   <script>
-    const toast = document.getElementById('toastMessage');
-    if (toast) {
-      setTimeout(() => toast.classList.add('visible'), 100);
-      setTimeout(() => toast.classList.remove('visible'), 4200);
-    }
+    const repInput = document.getElementById('representante');
+    const novoInput = document.getElementById('novo_representante');
 
-    const defaultButton = document.getElementById('applyDefault');
-    const defaultInput = document.getElementById('metaPadrao');
-    if (defaultButton && defaultInput) {
-      defaultButton.addEventListener('click', () => {
-        const value = defaultInput.value.trim();
-        if (!value) {
-          return;
-        }
-        document.querySelectorAll('.currency-input').forEach(input => {
-          if (!input.value.trim()) {
-            input.value = value;
-          }
-        });
-      });
-    }
-
-    document.querySelectorAll('[data-confirm="true"]').forEach(button => {
-      button.addEventListener('click', (event) => {
-        if (!confirm('Tem certeza que deseja zerar todas as metas deste período?')) {
-          event.preventDefault();
+    if (repInput && novoInput) {
+      repInput.addEventListener('input', () => {
+        const value = repInput.value.trim();
+        if (value === 'Cadastrar novo') {
+          novoInput.focus();
         }
       });
-    });
+    }
   </script>
 </body>
 </html>

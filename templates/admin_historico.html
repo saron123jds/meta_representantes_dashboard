@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Representantes - Histórico de Metas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">MR</span>
+      <div>
+        <strong>Meta Representantes</strong>
+        <span>Histórico de metas</span>
+      </div>
+    </div>
+    <nav class="topnav">
+      <a href="/">Dashboard</a>
+      <a href="/admin">Admin</a>
+      <a href="/admin/metas">Metas por Representante</a>
+      <a href="/admin/config">Coleção Atual</a>
+      <a class="active" href="/admin/historico">Histórico</a>
+    </nav>
+  </header>
+
+  <section class="hero hero-admin">
+    <div class="hero-content">
+      <div>
+        <p class="eyebrow">Administração</p>
+        <h1>Histórico de metas (ano anterior)</h1>
+        <p class="subtitle">Cadastre até 3 coleções do ano anterior para cada representante.</p>
+      </div>
+      <div class="hero-card">
+        <h3>Regras</h3>
+        <p class="caption">Cada representante pode ter até 3 registros no histórico.</p>
+      </div>
+    </div>
+  </section>
+
+  <main class="dashboard admin-page">
+    <section class="grid admin-grid">
+      <div class="card admin-card">
+        <h2>Adicionar coleção no histórico</h2>
+        {% if message %}
+        <div class="alert {{ message_type }}">{{ message }}</div>
+        {% endif %}
+        <form class="stack-form" method="post">
+          <input type="hidden" name="action" value="add">
+          <label class="form-field" for="representante_id">
+            <span>Representante</span>
+            <select id="representante_id" name="representante_id" required>
+              <option value="">Selecione</option>
+              {% for rep_id, rep in representantes.items() %}
+              <option value="{{ rep_id }}">{{ rep.nome }} ({{ rep_id }})</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="form-row">
+            <label class="form-field" for="ano">
+              <span>Ano</span>
+              <input id="ano" name="ano" type="number" min="2000" max="2100" required>
+            </label>
+            <label class="form-field" for="colecao">
+              <span>Coleção</span>
+              <select id="colecao" name="colecao" required>
+                {% for colecao in collection_options %}
+                <option value="{{ colecao }}">{{ colecao }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="form-field" for="meta">
+              <span>Meta</span>
+              <input id="meta" name="meta" type="text" placeholder="Ex: 80.000,00" required>
+            </label>
+            <label class="form-field" for="realizado">
+              <span>Realizado (opcional)</span>
+              <input id="realizado" name="realizado" type="text" placeholder="Ex: 75.000,00">
+            </label>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" type="submit">Adicionar coleção</button>
+          </div>
+        </form>
+      </div>
+      <div class="card admin-info">
+        <h3>Dicas</h3>
+        <ul class="info-list">
+          <li>Use esta tela para comparar histórico com metas atuais.</li>
+          <li>Mesmo representantes NOVO podem ter histórico cadastrado.</li>
+          <li>Campos de realizado são opcionais.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card admin-card admin-table">
+      <div class="section-header">
+        <div>
+          <h2>Histórico cadastrado</h2>
+          <p class="caption">Edite ou remova registros individualmente.</p>
+        </div>
+      </div>
+      {% if not historico %}
+      <div class="alert info">Nenhum histórico cadastrado.</div>
+      {% else %}
+      <div class="table-wrapper meta-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Representante</th>
+              <th>Ano</th>
+              <th>Coleção</th>
+              <th>Meta</th>
+              <th>Realizado</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in historico %}
+            <tr>
+              <form id="update-{{ item.id }}" method="post"></form>
+              <input form="update-{{ item.id }}" type="hidden" name="action" value="update">
+              <input form="update-{{ item.id }}" type="hidden" name="entry_id" value="{{ item.id }}">
+              <td>
+                <select name="representante_id" form="update-{{ item.id }}" required>
+                  {% for rep_id, rep in representantes.items() %}
+                  <option value="{{ rep_id }}" {% if rep_id == item.representante_id %}selected{% endif %}>{{ rep.nome }} ({{ rep_id }})</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input name="ano" form="update-{{ item.id }}" type="number" min="2000" max="2100" value="{{ item.ano }}" required></td>
+              <td>
+                <select name="colecao" form="update-{{ item.id }}" required>
+                  {% for colecao in collection_options %}
+                  <option value="{{ colecao }}" {% if item.colecao == colecao %}selected{% endif %}>{{ colecao }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td><input name="meta" form="update-{{ item.id }}" type="text" value="{{ "{:,.2f}".format(item.meta).replace(',', 'X').replace('.', ',').replace('X', '.') }}" required></td>
+              <td><input name="realizado" form="update-{{ item.id }}" type="text" value="{% if item.realizado is not none %}{{ "{:,.2f}".format(item.realizado).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endif %}"></td>
+              <td class="table-actions">
+                <button class="btn-secondary" form="update-{{ item.id }}" type="submit">Salvar</button>
+                  <form method="post" class="inline-form" onsubmit="return confirm('Deseja remover este histórico?');">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="entry_id" value="{{ item.id }}">
+                    <button class="btn-outline" type="submit">Remover</button>
+                  </form>
+                </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer>
+    <p>O histórico fica salvo localmente e pode ser usado nas comparações do representante.</p>
+  </footer>
+</body>
+</html>

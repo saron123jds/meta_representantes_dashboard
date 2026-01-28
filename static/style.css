@@ -447,10 +447,12 @@ a {
 
 .form-field input[type="month"],
 .form-field input[type="text"],
-.form-field input[type="number"] {
+.form-field input[type="number"],
+.form-field select {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
+  background: #fff;
 }
 
 .btn-primary {
@@ -607,6 +609,41 @@ a {
 .meta-form input[type="text"],
 .meta-form input[type="number"] {
   width: 100%;
+}
+
+.stack-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.form-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inline-form {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+
+.section-title {
+  margin: 0;
 }
 
 .form-actions {

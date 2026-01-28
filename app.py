@@ -11,7 +11,9 @@ from werkzeug.utils import secure_filename
 DEFAULT_EXPORT_DIR = r"C:\\META REPRESENTANTES\\Exporta"
 SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".csv"}
 DATA_DIR = Path("data")
-METAS_FILE = DATA_DIR / "metas.json"
+DATA_STORE_FILE = DATA_DIR / "metas.json"
+DEFAULT_COLLECTION = "PRIMAVERA"
+COLLECTION_OPTIONS = ["PRIMAVERA", "INVERNO", "VERAO"]
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
@@ -47,38 +49,76 @@ def purge_export_files(directory: Path) -> int:
     return removed
 
 
-def ensure_metas_store() -> None:
+def default_store() -> dict:
+    return {
+        "version": 2,
+        "periodos": {},
+        "representantes": {},
+        "metas_atuais": [],
+        "historico_metas": [],
+        "config": {
+            "ano_atual": datetime.now().year,
+            "colecao_atual": DEFAULT_COLLECTION,
+            "ano_atual_dazul": None,
+            "colecao_atual_dazul": None,
+            "ano_atual_saron": None,
+            "colecao_atual_saron": None,
+        },
+    }
+
+
+def ensure_data_store() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not METAS_FILE.exists():
-        METAS_FILE.write_text(
-            json.dumps({"periodos": {}}, ensure_ascii=False, indent=2),
+    if not DATA_STORE_FILE.exists():
+        DATA_STORE_FILE.write_text(
+            json.dumps(default_store(), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
 
-def load_metas_store() -> dict:
-    ensure_metas_store()
+def load_data_store() -> dict:
+    ensure_data_store()
     try:
-        data = json.loads(METAS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(DATA_STORE_FILE.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        data = {"periodos": {}}
-    if "periodos" in data:
-        return data
-    if "metas" in data:
+        data = {}
+
+    if "metas" in data and "periodos" not in data:
         period = data.get("periodo") or current_period()
-        period_data = {
-            period: {
-                "metas": data.get("metas", {}),
-                "updated_at": data.get("updated_at"),
+        data = {
+            "periodos": {
+                period: {
+                    "metas": data.get("metas", {}),
+                    "updated_at": data.get("updated_at"),
+                }
             }
         }
-        return {"periodos": period_data}
-    return {"periodos": {}}
+
+    defaults = default_store()
+    for key, value in defaults.items():
+        if key not in data:
+            data[key] = value
+    if not isinstance(data.get("periodos"), dict):
+        data["periodos"] = {}
+    if not isinstance(data.get("representantes"), dict):
+        data["representantes"] = {}
+    if not isinstance(data.get("metas_atuais"), list):
+        data["metas_atuais"] = []
+    if not isinstance(data.get("historico_metas"), list):
+        data["historico_metas"] = []
+    if not isinstance(data.get("config"), dict):
+        data["config"] = defaults["config"]
+    else:
+        for key, value in defaults["config"].items():
+            data["config"].setdefault(key, value)
+    return data
 
 
-def save_metas_store(data: dict) -> None:
-    ensure_metas_store()
-    METAS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+def save_data_store(data: dict) -> None:
+    ensure_data_store()
+    DATA_STORE_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def current_period() -> str:
@@ -200,6 +240,58 @@ def normalize_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def get_current_config(store: dict) -> dict:
+    config = store.get("config", {})
+    ano_atual = config.get("ano_atual") or datetime.now().year
+    colecao_atual = config.get("colecao_atual") or DEFAULT_COLLECTION
+    return {
+        "ano_atual": int(ano_atual),
+        "colecao_atual": str(colecao_atual).upper(),
+        "ano_atual_dazul": config.get("ano_atual_dazul"),
+        "colecao_atual_dazul": config.get("colecao_atual_dazul"),
+        "ano_atual_saron": config.get("ano_atual_saron"),
+        "colecao_atual_saron": config.get("colecao_atual_saron"),
+    }
+
+
+def next_id(items: list[dict]) -> int:
+    existing = [item.get("id", 0) for item in items if isinstance(item.get("id"), int)]
+    return (max(existing) + 1) if existing else 1
+
+
+def sync_representantes(store: dict, df: pd.DataFrame) -> bool:
+    if df.empty:
+        return False
+    representantes = store.setdefault("representantes", {})
+    changed = False
+    for _, row in df.iterrows():
+        codigo = row.get("CODIGO")
+        nome = row.get("NOME_VENDEDOR") or "-"
+        rep_id = normalize_identifier(codigo, nome)
+        if rep_id not in representantes:
+            representantes[rep_id] = {
+                "id": rep_id,
+                "nome": nome,
+                "status": "ATIVO",
+                "marca": None,
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            changed = True
+    return changed
+
+
+def build_metas_map(store: dict, ano: int, colecao: str) -> dict:
+    metas_map: dict[str, dict] = {}
+    for meta in store.get("metas_atuais", []):
+        meta_colecao = str(meta.get("colecao") or "").upper()
+        if meta.get("ano") == ano and meta_colecao == colecao:
+            rep_id = meta.get("representante_id")
+            if rep_id:
+                metas_map[rep_id] = meta
+    return metas_map
+
+
 def load_report(path: Path) -> pd.DataFrame:
     if path.suffix.lower() == ".csv":
         csv_kwargs = {"sep": None, "engine": "python"}
@@ -241,10 +333,11 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
     vendedores_com_meta = 0
     vendedores_acima_meta = 0
     vendedores_sem_meta = 0
+    vendedores_abaixo_meta = 0
     for _, row in df.iterrows():
         rep_id = normalize_identifier(row.get("CODIGO"), row.get("NOME_VENDEDOR"))
         meta_data = metas_map.get(rep_id, {})
-        meta_valor = meta_data.get("meta_valor")
+        meta_valor = meta_data.get("meta")
         vlr_liquido = float(row.get("VLR_LIQUIDO") or 0)
         if meta_valor and meta_valor > 0:
             vendedores_com_meta += 1
@@ -253,6 +346,8 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
             gap_total += max(meta_valor - vlr_liquido, 0.0)
             if vlr_liquido / meta_valor >= 1:
                 vendedores_acima_meta += 1
+            else:
+                vendedores_abaixo_meta += 1
         else:
             vendedores_sem_meta += 1
 
@@ -312,18 +407,7 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
     )
     vendedor_destaque = destaque[0] if destaque else {"NOME_VENDEDOR": "-", "VLR_LIQUIDO": 0.0}
 
-    vendedores_abaixo_meta = 0
     vendedores_sem_clientes_ativos = 0
-    if metas_map and "VLR_LIQUIDO" in df.columns:
-        for _, row in df.iterrows():
-            rep_id = normalize_identifier(row.get("CODIGO"), row.get("NOME_VENDEDOR"))
-            meta_data = metas_map.get(rep_id, {})
-            meta_valor = meta_data.get("meta_valor")
-            vendas = float(row.get("VLR_LIQUIDO") or 0)
-            if meta_valor and meta_valor > 0:
-                percentual = vendas / meta_valor
-                if percentual < 0.5:
-                    vendedores_abaixo_meta += 1
     if "CLIENTES_ATIVOS" in df.columns:
         vendedores_sem_clientes_ativos = int((df["CLIENTES_ATIVOS"].fillna(0) <= 0).sum())
 
@@ -364,6 +448,7 @@ def build_summary(df: pd.DataFrame, metas_map: dict) -> dict:
         "vendedores_sem_clientes_ativos": vendedores_sem_clientes_ativos,
         "vendedores_com_meta": vendedores_com_meta,
         "vendedores_acima_meta": vendedores_acima_meta,
+        "vendedores_abaixo_meta": vendedores_abaixo_meta,
         "top_clientes_novos": top_clientes_novos,
     }
 
@@ -421,14 +506,12 @@ def build_vendedores(df: pd.DataFrame, metas_map: dict) -> list[dict]:
     for _, row in df.iterrows():
         rep_id = normalize_identifier(row.get("CODIGO"), row.get("NOME_VENDEDOR"))
         meta_data = metas_map.get(rep_id, {})
-        valor_meta = safe_value(meta_data.get("meta_valor"), 0.0)
-        meta_pedidos = safe_value(meta_data.get("meta_pedidos"), 0.0)
+        valor_meta = safe_value(meta_data.get("meta"), 0.0)
         vlr_liquido = safe_value(row.get("VLR_LIQUIDO"), 0.0)
         percentual_meta = None
         gap_meta = None
         meta_status_class = "status-neutral"
-        meta_status_label = "Meta pendente"
-        percentual_pedidos = None
+        meta_status_label = "Sem meta cadastrada"
 
         if valor_meta and valor_meta > 0:
             percentual_meta = vlr_liquido / valor_meta
@@ -442,9 +525,6 @@ def build_vendedores(df: pd.DataFrame, metas_map: dict) -> list[dict]:
             else:
                 meta_status_class = "status-alert"
                 meta_status_label = "Atenção"
-
-        if meta_pedidos and meta_pedidos > 0:
-            percentual_pedidos = safe_value(row.get("TOTAL_PEDIDOS"), 0) / meta_pedidos
 
         vendedores.append(
             {
@@ -461,9 +541,7 @@ def build_vendedores(df: pd.DataFrame, metas_map: dict) -> list[dict]:
                 "media_pedidos": safe_value(row.get("MEDIA_PEDIDOS")),
                 "clientes_novos": safe_value(row.get("CLIENTES_NOVOS")),
                 "valor_meta": valor_meta,
-                "meta_pedidos": meta_pedidos,
                 "percentual_meta": percentual_meta,
-                "percentual_pedidos": percentual_pedidos,
                 "gap_meta": gap_meta,
                 "meta_status_class": meta_status_class,
                 "meta_status_label": meta_status_label,
@@ -544,10 +622,11 @@ def dashboard():
         )
 
     df = load_report(latest_file)
-    period = normalize_period(request.args.get("periodo"))
-    metas_store = load_metas_store()
-    period_data = metas_store.get("periodos", {}).get(period, {})
-    metas_map = period_data.get("metas", {})
+    store = load_data_store()
+    if sync_representantes(store, df):
+        save_data_store(store)
+    config = get_current_config(store)
+    metas_map = build_metas_map(store, config["ano_atual"], config["colecao_atual"])
     summary = build_summary(df, metas_map)
     insights = build_insights(df)
     vendedores = build_vendedores(df, metas_map)
@@ -566,8 +645,7 @@ def dashboard():
         export_dir=str(export_dir),
         latest_file=latest_file.name,
         updated_at=datetime.fromtimestamp(latest_file.stat().st_mtime),
-        metas_periodo=period,
-        metas_updated_at=period_data.get("updated_at"),
+        config=config,
         summary=summary,
         insights=insights,
         vendedores=vendedores,
@@ -627,88 +705,158 @@ def admin():
 def admin_metas():
     export_dir = resolve_export_dir()
     latest_file = find_latest_file(export_dir)
-    period = normalize_period(request.values.get("periodo"))
-    metas_store = load_metas_store()
-    period_data = metas_store.setdefault("periodos", {}).setdefault(
-        period, {"metas": {}, "updated_at": None}
-    )
-    metas_map = period_data.setdefault("metas", {})
-
+    store = load_data_store()
+    df = load_report(latest_file) if latest_file else pd.DataFrame()
+    if sync_representantes(store, df):
+        save_data_store(store)
+    config = get_current_config(store)
     message = None
     message_type = "info"
-
-    df = load_report(latest_file) if latest_file else pd.DataFrame()
+    edit_id = request.args.get("edit_id")
 
     if request.method == "POST":
-        action = request.form.get("action", "salvar")
-        if action == "zerar":
-            metas_map.clear()
-            period_data["updated_at"] = datetime.now().isoformat(timespec="seconds")
-            save_metas_store(metas_store)
-            message = "Metas do período zeradas com sucesso."
-            message_type = "success"
+        action = request.form.get("action", "save")
+        if action == "delete":
+            meta_id = request.form.get("meta_id")
+            if meta_id:
+                meta_id_int = int(meta_id)
+                metas = store.get("metas_atuais", [])
+                store["metas_atuais"] = [item for item in metas if item.get("id") != meta_id_int]
+                save_data_store(store)
+                message = "Meta excluída com sucesso."
+                message_type = "success"
         else:
-            rep_total = int(request.form.get("rep_total", 0))
-            salvar_id = request.form.get("salvar_id")
-            target_index = int(salvar_id) if salvar_id else None
+            meta_id = request.form.get("meta_id")
+            rep_id = request.form.get("representante_id") or ""
+            rep_choice = request.form.get("representante") or ""
+            novo_nome = request.form.get("novo_representante") or ""
+            status = (request.form.get("status_representante") or "ATIVO").upper()
+            ano = int(request.form.get("ano") or config["ano_atual"])
+            colecao = (request.form.get("colecao") or config["colecao_atual"]).upper()
+            meta_valor = parse_ptbr_number(request.form.get("meta"))
+
+            rep_lookup = {
+                f"{rep_id_key} - {rep['nome']}": rep_id_key
+                for rep_id_key, rep in store.get("representantes", {}).items()
+            }
+            rep_lookup.update({rep_id_key: rep_id_key for rep_id_key in store.get("representantes", {})})
+
+            if not rep_id and rep_choice in rep_lookup:
+                rep_id = rep_lookup[rep_choice]
+
+            if not rep_id and novo_nome:
+                rep_id = normalize_identifier(None, novo_nome)
+
             errors = []
+            if not rep_id:
+                errors.append("Informe o representante ou cadastre um novo.")
+            if meta_valor is None or meta_valor < 0:
+                errors.append("Meta deve ser um número válido maior ou igual a zero.")
+            if colecao not in COLLECTION_OPTIONS:
+                errors.append("Selecione uma coleção válida.")
 
-            for index in range(rep_total):
-                if target_index is not None and index != target_index:
-                    continue
-                rep_id = request.form.get(f"rep_id_{index}") or ""
-                rep_nome = request.form.get(f"rep_nome_{index}") or ""
-                meta_valor = parse_ptbr_number(request.form.get(f"meta_valor_{index}"))
-                meta_pedidos = parse_ptbr_number(
-                    request.form.get(f"meta_pedidos_{index}")
-                )
-
-                if meta_valor is not None and meta_valor < 0:
-                    errors.append("Meta de valor deve ser maior ou igual a zero.")
-                if meta_pedidos is not None and meta_pedidos < 0:
-                    errors.append("Meta de pedidos deve ser maior ou igual a zero.")
-
-                if not rep_id:
-                    continue
-
-                if meta_valor is None and meta_pedidos is None:
-                    metas_map.pop(rep_id, None)
-                else:
-                    metas_map[rep_id] = {
-                        "nome": rep_nome,
-                        "meta_valor": meta_valor or 0,
-                        "meta_pedidos": meta_pedidos or 0,
+            if not errors:
+                representantes = store.setdefault("representantes", {})
+                rep_nome_final = novo_nome or rep_choice
+                rep_data = representantes.get(rep_id)
+                if not rep_data:
+                    rep_data = {
+                        "id": rep_id,
+                        "nome": rep_nome_final or rep_id,
+                        "status": status if status in {"ATIVO", "NOVO"} else "NOVO",
+                        "marca": None,
+                        "created_at": datetime.now().isoformat(timespec="seconds"),
+                        "updated_at": datetime.now().isoformat(timespec="seconds"),
                     }
+                    representantes[rep_id] = rep_data
+                else:
+                    rep_data["nome"] = rep_data.get("nome") or rep_nome_final or rep_id
+                    if status in {"ATIVO", "NOVO"}:
+                        rep_data["status"] = status
+                    rep_data["updated_at"] = datetime.now().isoformat(timespec="seconds")
 
-            if errors:
+                metas = store.setdefault("metas_atuais", [])
+                meta_id_int = int(meta_id) if meta_id else None
+                meta_entry = None
+                if meta_id_int:
+                    meta_entry = next(
+                        (item for item in metas if item.get("id") == meta_id_int), None
+                    )
+                if not meta_entry:
+                    meta_entry = next(
+                        (
+                            item
+                            for item in metas
+                            if item.get("representante_id") == rep_id
+                            and item.get("ano") == ano
+                            and item.get("colecao") == colecao
+                        ),
+                        None,
+                    )
+
+                if meta_entry:
+                    meta_entry.update(
+                        {
+                            "representante_id": rep_id,
+                            "marca": None,
+                            "ano": ano,
+                            "colecao": colecao,
+                            "meta": meta_valor,
+                            "updated_at": datetime.now().isoformat(timespec="seconds"),
+                        }
+                    )
+                else:
+                    metas.append(
+                        {
+                            "id": next_id(metas),
+                            "representante_id": rep_id,
+                            "marca": None,
+                            "ano": ano,
+                            "colecao": colecao,
+                            "meta": meta_valor,
+                            "created_at": datetime.now().isoformat(timespec="seconds"),
+                            "updated_at": datetime.now().isoformat(timespec="seconds"),
+                        }
+                    )
+
+                save_data_store(store)
+                message = "Meta salva com sucesso."
+                message_type = "success"
+            else:
                 message = " ".join(errors)
                 message_type = "error"
-            else:
-                period_data["updated_at"] = datetime.now().isoformat(timespec="seconds")
-                save_metas_store(metas_store)
-                message = "Metas salvas com sucesso."
-                message_type = "success"
 
-    representantes = []
-    if not df.empty:
-        for _, row in df.iterrows():
-            codigo = row.get("CODIGO")
-            nome = row.get("NOME_VENDEDOR") or "-"
-            rep_id = normalize_identifier(codigo, nome)
-            meta_data = metas_map.get(rep_id, {})
-            meta_valor = meta_data.get("meta_valor")
-            meta_pedidos = meta_data.get("meta_pedidos")
-            status = "Cadastrada" if (meta_valor or meta_pedidos) else "Pendente"
-            representantes.append(
-                {
-                    "codigo": codigo or "-",
-                    "nome": nome,
-                    "identificador": rep_id,
-                    "meta_valor": meta_valor,
-                    "meta_pedidos": meta_pedidos,
-                    "status": status,
-                }
+    metas_atuais = [
+        meta
+        for meta in store.get("metas_atuais", [])
+        if meta.get("ano") == config["ano_atual"]
+        and meta.get("colecao") == config["colecao_atual"]
+    ]
+    representantes = store.get("representantes", {})
+    metas_atuais = sorted(
+        metas_atuais,
+        key=lambda item: representantes.get(item.get("representante_id"), {}).get("nome", ""),
+    )
+
+    edit_meta = None
+    if edit_id:
+        try:
+            edit_meta = next(
+                (item for item in metas_atuais if item.get("id") == int(edit_id)), None
             )
+        except ValueError:
+            edit_meta = None
+
+    rep_options = [
+        {
+            "value": f"{rep_id} - {rep.get('nome')}",
+            "id": rep_id,
+            "nome": rep.get("nome"),
+            "status": rep.get("status"),
+        }
+        for rep_id, rep in representantes.items()
+    ]
+    rep_options = sorted(rep_options, key=lambda item: item["nome"] or "")
 
     return render_template(
         "admin_metas.html",
@@ -717,11 +865,250 @@ def admin_metas():
         updated_at=(
             datetime.fromtimestamp(latest_file.stat().st_mtime) if latest_file else None
         ),
-        periodo=period,
-        metas_updated_at=period_data.get("updated_at"),
-        representantes=representantes,
+        config=config,
+        metas_atuais=metas_atuais,
+        rep_options=rep_options,
+        edit_meta=edit_meta,
         message=message,
         message_type=message_type,
+    )
+
+
+@app.route("/admin/config", methods=["GET", "POST"])
+def admin_config():
+    export_dir = resolve_export_dir()
+    latest_file = find_latest_file(export_dir)
+    store = load_data_store()
+    message = None
+    message_type = "info"
+
+    if request.method == "POST":
+        ano_atual = request.form.get("ano_atual")
+        colecao_atual = request.form.get("colecao_atual")
+        ano_dazul = request.form.get("ano_atual_dazul") or None
+        colecao_dazul = request.form.get("colecao_atual_dazul") or None
+        ano_saron = request.form.get("ano_atual_saron") or None
+        colecao_saron = request.form.get("colecao_atual_saron") or None
+
+        errors = []
+        if not ano_atual or not ano_atual.isdigit():
+            errors.append("Informe um ano atual válido.")
+        if colecao_atual not in COLLECTION_OPTIONS:
+            errors.append("Selecione uma coleção válida.")
+
+        if errors:
+            message = " ".join(errors)
+            message_type = "error"
+        else:
+            store["config"] = {
+                "ano_atual": int(ano_atual),
+                "colecao_atual": colecao_atual,
+                "ano_atual_dazul": int(ano_dazul) if ano_dazul and ano_dazul.isdigit() else None,
+                "colecao_atual_dazul": colecao_dazul or None,
+                "ano_atual_saron": int(ano_saron) if ano_saron and ano_saron.isdigit() else None,
+                "colecao_atual_saron": colecao_saron or None,
+            }
+            save_data_store(store)
+            message = "Configurações atualizadas com sucesso."
+            message_type = "success"
+
+    config = get_current_config(store)
+    return render_template(
+        "admin_config.html",
+        export_dir=str(export_dir),
+        latest_file=latest_file.name if latest_file else None,
+        updated_at=(
+            datetime.fromtimestamp(latest_file.stat().st_mtime) if latest_file else None
+        ),
+        config=config,
+        message=message,
+        message_type=message_type,
+        collection_options=COLLECTION_OPTIONS,
+    )
+
+
+@app.route("/admin/historico", methods=["GET", "POST"])
+def admin_historico():
+    export_dir = resolve_export_dir()
+    latest_file = find_latest_file(export_dir)
+    store = load_data_store()
+    df = load_report(latest_file) if latest_file else pd.DataFrame()
+    if sync_representantes(store, df):
+        save_data_store(store)
+    message = None
+    message_type = "info"
+
+    if request.method == "POST":
+        action = request.form.get("action", "add")
+        if action == "delete":
+            entry_id = request.form.get("entry_id")
+            if entry_id:
+                entry_id_int = int(entry_id)
+                store["historico_metas"] = [
+                    item
+                    for item in store.get("historico_metas", [])
+                    if item.get("id") != entry_id_int
+                ]
+                save_data_store(store)
+                message = "Histórico removido com sucesso."
+                message_type = "success"
+        else:
+            entry_id = request.form.get("entry_id")
+            rep_id = request.form.get("representante_id") or ""
+            ano = request.form.get("ano")
+            colecao = (request.form.get("colecao") or "").upper()
+            meta_valor = parse_ptbr_number(request.form.get("meta"))
+            realizado_valor = parse_ptbr_number(request.form.get("realizado"))
+
+            errors = []
+            if not rep_id:
+                errors.append("Informe o representante.")
+            if not ano or not ano.isdigit():
+                errors.append("Informe um ano válido.")
+            if colecao not in COLLECTION_OPTIONS:
+                errors.append("Selecione uma coleção válida.")
+            if meta_valor is None or meta_valor < 0:
+                errors.append("Meta deve ser um número válido maior ou igual a zero.")
+            if realizado_valor is not None and realizado_valor < 0:
+                errors.append("Realizado deve ser maior ou igual a zero.")
+
+            if not errors:
+                historicos = store.setdefault("historico_metas", [])
+                entry_id_int = int(entry_id) if entry_id else None
+                entry = None
+                if entry_id_int:
+                    entry = next(
+                        (item for item in historicos if item.get("id") == entry_id_int),
+                        None,
+                    )
+                if not entry:
+                    rep_entries = [item for item in historicos if item.get("representante_id") == rep_id]
+                    if len(rep_entries) >= 3:
+                        message = "Cada representante pode ter até 3 coleções no histórico."
+                        message_type = "error"
+                        return render_template(
+                            "admin_historico.html",
+                            export_dir=str(export_dir),
+                            latest_file=latest_file.name if latest_file else None,
+                            updated_at=(
+                                datetime.fromtimestamp(latest_file.stat().st_mtime)
+                                if latest_file
+                                else None
+                            ),
+                            representantes=store.get("representantes", {}),
+                            historico=sorted(
+                                historicos,
+                                key=lambda item: (
+                                    store.get("representantes", {})
+                                    .get(item.get("representante_id"), {})
+                                    .get("nome", ""),
+                                    -int(item.get("ano", 0)),
+                                ),
+                            ),
+                            message=message,
+                            message_type=message_type,
+                            collection_options=COLLECTION_OPTIONS,
+                        )
+                    historicos.append(
+                        {
+                            "id": next_id(historicos),
+                            "representante_id": rep_id,
+                            "ano": int(ano),
+                            "colecao": colecao,
+                            "meta": meta_valor,
+                            "realizado": realizado_valor,
+                            "created_at": datetime.now().isoformat(timespec="seconds"),
+                            "updated_at": datetime.now().isoformat(timespec="seconds"),
+                        }
+                    )
+                    message = "Histórico adicionado com sucesso."
+                    message_type = "success"
+                else:
+                    entry.update(
+                        {
+                            "representante_id": rep_id,
+                            "ano": int(ano),
+                            "colecao": colecao,
+                            "meta": meta_valor,
+                            "realizado": realizado_valor,
+                            "updated_at": datetime.now().isoformat(timespec="seconds"),
+                        }
+                    )
+                    message = "Histórico atualizado com sucesso."
+                    message_type = "success"
+                save_data_store(store)
+            else:
+                message = " ".join(errors)
+                message_type = "error"
+
+    historico = sorted(
+        store.get("historico_metas", []),
+        key=lambda item: (
+            store.get("representantes", {})
+            .get(item.get("representante_id"), {})
+            .get("nome", ""),
+            -int(item.get("ano", 0)),
+        ),
+    )
+
+    return render_template(
+        "admin_historico.html",
+        export_dir=str(export_dir),
+        latest_file=latest_file.name if latest_file else None,
+        updated_at=(
+            datetime.fromtimestamp(latest_file.stat().st_mtime) if latest_file else None
+        ),
+        representantes=store.get("representantes", {}),
+        historico=historico,
+        message=message,
+        message_type=message_type,
+        collection_options=COLLECTION_OPTIONS,
+    )
+
+
+@app.route("/representante/<rep_id>")
+def representante_detail(rep_id: str):
+    export_dir = resolve_export_dir()
+    latest_file = find_latest_file(export_dir)
+    if not latest_file:
+        return render_template(
+            "representante_detail.html",
+            data_loaded=False,
+            representante=None,
+        )
+
+    df = load_report(latest_file)
+    store = load_data_store()
+    if sync_representantes(store, df):
+        save_data_store(store)
+    config = get_current_config(store)
+    metas_map = build_metas_map(store, config["ano_atual"], config["colecao_atual"])
+    representante = store.get("representantes", {}).get(rep_id)
+
+    vendas_data = None
+    if not df.empty:
+        for _, row in df.iterrows():
+            rep_identifier = normalize_identifier(row.get("CODIGO"), row.get("NOME_VENDEDOR"))
+            if rep_identifier == rep_id:
+                vendas_data = row.to_dict()
+                break
+
+    meta_atual = metas_map.get(rep_id)
+    historico = [
+        item
+        for item in store.get("historico_metas", [])
+        if item.get("representante_id") == rep_id
+    ]
+    historico = sorted(historico, key=lambda item: (-int(item.get("ano", 0)), item.get("colecao", "")))
+
+    return render_template(
+        "representante_detail.html",
+        data_loaded=True,
+        representante=representante,
+        vendas_data=vendas_data,
+        config=config,
+        meta_atual=meta_atual,
+        historico=historico,
     )
 
 
